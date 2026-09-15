@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -61,11 +62,27 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/announcements/active").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Only relevant when the frontend's build is bundled into this app's own
+                        // static resources for a single-deployable production setup (see
+                        // SpaForwardingController) - the app shell and its JS/CSS aren't
+                        // sensitive, so any GET outside /api and /actuator is public the same way
+                        // the Vite dev server already serves it with no auth of its own. The real
+                        // security boundary is the /api/** rules above, not this.
+                        .requestMatchers(spaShellMatcher()).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    private RequestMatcher spaShellMatcher() {
+        return request -> {
+            String path = request.getRequestURI().substring(request.getContextPath().length());
+            return "GET".equalsIgnoreCase(request.getMethod())
+                    && !path.startsWith("/api")
+                    && !path.startsWith("/actuator");
+        };
     }
 
     private CorsConfigurationSource corsConfigurationSource() {

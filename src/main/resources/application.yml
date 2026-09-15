@@ -2,7 +2,9 @@ spring:
   application:
     name: unilinkhub
   datasource:
-    url: jdbc:mysql://localhost:3306/unilinkhub?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    # DB_URL lets a host that only gives you host/port/database (Railway, Render, etc.) be wired
+    # in without a code change - only the local XAMPP default lives in this file.
+    url: ${DB_URL:jdbc:mysql://localhost:3306/unilinkhub?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${DB_USERNAME:unilinkhub}
     password: ${DB_PASSWORD:unilinkhub}
     driver-class-name: com.mysql.cj.jdbc.Driver
