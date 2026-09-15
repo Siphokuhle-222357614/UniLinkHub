@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#163D72"/>
-  <text x="16" y="22" font-family="Poppins, sans-serif" font-size="15" font-weight="700" fill="#2A9BB4" text-anchor="middle">UH</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#FFFFFF"/>
+  <text x="6" y="45" font-family="'Playfair Display', Georgia, serif" font-size="44" font-weight="700" fill="#163D72">U</text>
+  <text x="29" y="45" font-family="'Playfair Display', Georgia, serif" font-size="44" font-weight="700" fill="#2A9BB4">H</text>
+  <path d="M10 33 C 22 44, 40 22, 54 33" stroke="#2A9BB4" stroke-width="2.5" fill="none" stroke-linecap="round"/>
 </svg>

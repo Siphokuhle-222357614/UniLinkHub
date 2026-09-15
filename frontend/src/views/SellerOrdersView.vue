@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 import type { OrderDTO, OrderStatus } from "@/lib/types";
 
+const toast = useToastStore();
 const orders = ref<OrderDTO[]>([]);
 const loading = ref(false);
 const error = ref("");
@@ -45,11 +47,18 @@ async function load() {
   }
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  confirm: "Order confirmed!",
+  ready: "Marked ready for pickup!",
+  complete: "Order completed!",
+};
+
 async function act(id: string, action: "confirm" | "ready" | "complete") {
   acting.value = id;
   error.value = "";
   try {
     await api.post(`/orders/${id}/${action}`);
+    toast.success(ACTION_LABELS[action]);
     await load();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -69,6 +78,7 @@ async function confirmCancel(id: string) {
   try {
     await api.post(`/orders/${id}/cancel`, { reason: cancelReason.value });
     cancellingId.value = null;
+    toast.info("Order cancelled");
     await load();
   } catch (err) {
     error.value = extractErrorMessage(err);

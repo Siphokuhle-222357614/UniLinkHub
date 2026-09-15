@@ -2,6 +2,7 @@
 import NavBar from "@/components/NavBar.vue";
 import AnnouncementBanner from "@/components/AnnouncementBanner.vue";
 import CompareTray from "@/components/CompareTray.vue";
+import ToastContainer from "@/components/ToastContainer.vue";
 </script>
 
 <template>
@@ -12,5 +13,6 @@ import CompareTray from "@/components/CompareTray.vue";
       <RouterView />
     </main>
     <CompareTray />
+    <ToastContainer />
   </div>
 </template>

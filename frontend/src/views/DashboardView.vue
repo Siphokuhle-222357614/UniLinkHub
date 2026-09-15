@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
+import { useToastStore } from "@/stores/toast";
 import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
@@ -12,6 +13,7 @@ import type { BookingSummaryView, BusinessDTO, BusinessStatsDTO, ListingDTO, Que
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
 const followed = useFollowedProvidersStore();
+const toast = useToastStore();
 const categories = useCategories();
 
 const businesses = ref<BusinessDTO[]>([]);
@@ -197,6 +199,7 @@ async function acceptBooking(id: string) {
   bookingActing.value = id;
   try {
     await api.post(`/bookings/${id}/accept`);
+    toast.success("Booking accepted!");
     await loadSellerBookings();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -215,6 +218,7 @@ async function confirmDecline(id: string) {
   try {
     await api.post(`/bookings/${id}/decline`, { reason: declineReason.value });
     decliningBookingId.value = null;
+    toast.info("Booking declined");
     await loadSellerBookings();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -245,6 +249,7 @@ async function answerQuestion(id: string) {
   try {
     await api.post(`/questions/${id}/answer`, { answerText });
     delete answerDrafts.value[id];
+    toast.success("Answer posted!");
     await loadPendingQuestions();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -288,6 +293,7 @@ async function createBusiness() {
   error.value = "";
   try {
     await api.post("/businesses", newBusiness.value);
+    toast.success("Business added!", "An admin will review it within a few days.");
     newBusiness.value = { businessName: "", description: "", category: "" };
     await loadBusinesses();
   } catch (err) {
@@ -321,6 +327,7 @@ async function createListing() {
         availabilitySchedule: newListing.value.availabilitySchedule || null,
       });
     }
+    toast.success("Listing published!");
     newListing.value.name = "";
     newListing.value.description = "";
     newListing.value.category = "";
@@ -404,6 +411,7 @@ async function saveEdit(listing: ListingDTO) {
       availabilitySchedule: listing.type === "SERVICE" ? editForm.value.availabilitySchedule : undefined,
     });
     editingListingId.value = null;
+    toast.success("Changes saved!");
     await loadBusinesses();
   } catch (err) {
     error.value = extractErrorMessage(err);

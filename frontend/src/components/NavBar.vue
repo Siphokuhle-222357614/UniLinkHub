@@ -4,6 +4,7 @@ import { useAuthStore } from "@/stores/auth";
 import NotificationBell from "@/components/NotificationBell.vue";
 import MessagesIcon from "@/components/MessagesIcon.vue";
 import CartDrawer from "@/components/CartDrawer.vue";
+import LogoMark from "@/components/LogoMark.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -17,7 +18,8 @@ function handleLogout() {
 <template>
   <header class="border-b border-light-grey bg-white">
     <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-      <RouterLink to="/" class="flex items-baseline gap-2">
+      <RouterLink to="/" class="flex items-center gap-2">
+        <LogoMark :size="30" />
         <span class="font-display text-xl font-bold text-uni-navy">UniLinkHub</span>
         <span class="hidden text-xs text-medium-grey sm:inline">Connect. Buy. Sell &amp; Succeed.</span>
       </RouterLink>

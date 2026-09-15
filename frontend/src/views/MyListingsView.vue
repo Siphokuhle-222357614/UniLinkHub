@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 import type { BusinessDTO, ListingDTO } from "@/lib/types";
 
 const router = useRouter();
+const toast = useToastStore();
 
 const listings = ref<ListingDTO[]>([]);
 const businesses = ref<BusinessDTO[]>([]);
@@ -16,14 +18,6 @@ const selected = ref(new Set<string>());
 const bulkActing = ref(false);
 const openMenuId = ref<string | null>(null);
 const duplicatingId = ref<string | null>(null);
-const toast = ref("");
-let toastHandle: ReturnType<typeof setTimeout> | undefined;
-
-function showToast(message: string) {
-  toast.value = message;
-  clearTimeout(toastHandle);
-  toastHandle = setTimeout(() => (toast.value = ""), 4000);
-}
 
 function exportCsv() {
   const header = ["Listing", "Business", "Price", "Status", "Views"];
@@ -128,8 +122,10 @@ async function bulkAction(action: "reactivate" | "deactivate") {
   bulkActing.value = true;
   error.value = "";
   try {
+    const count = selected.value.size;
     await Promise.all([...selected.value].map((id) => api.post(`/listings/${id}/${action}`)));
     selected.value.clear();
+    toast.success(`${count} listing${count === 1 ? "" : "s"} ${action === "reactivate" ? "activated" : "deactivated"}!`);
     await load();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -176,7 +172,7 @@ async function duplicateListing(listing: ListingDTO) {
           availabilitySchedule: listing.availabilitySchedule,
         });
     await api.post(`/listings/${created.id}/deactivate`);
-    showToast(`Duplicated as "${created.name}" — saved as inactive, ready to edit.`);
+    toast.success("Listing duplicated!", `Saved as "${created.name}" — inactive, ready to edit.`);
     await load();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -298,10 +294,6 @@ onMounted(load);
           <button class="text-sm font-medium text-white/70" @click="selected.clear()">Cancel</button>
         </div>
       </div>
-    </div>
-
-    <div v-if="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-control bg-charcoal px-4 py-2.5 text-sm text-white shadow-lg">
-      {{ toast }}
     </div>
   </section>
 </template>

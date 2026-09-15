@@ -5,6 +5,7 @@ import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
+import { useToastStore } from "@/stores/toast";
 import { useCategories } from "@/lib/categories";
 import type { BusinessDTO, ListingDTO, ReportSummaryView } from "@/lib/types";
 
@@ -13,6 +14,7 @@ const auth = useAuthStore();
 const saved = useSavedListingsStore();
 const followed = useFollowedProvidersStore();
 const categories = useCategories();
+const toast = useToastStore();
 
 // ---- Profile ----
 const profileForm = ref({ firstName: "", lastName: "", phoneNumber: "" });
@@ -35,6 +37,7 @@ async function saveProfile() {
   try {
     await auth.updateProfile(profileForm.value);
     profileStatus.value = "Profile updated.";
+    toast.success("Profile updated!");
   } catch (err) {
     profileError.value = extractErrorMessage(err);
   } finally {
@@ -132,6 +135,7 @@ async function savePassword() {
       newPassword: passwordForm.value.newPassword,
     });
     passwordStatus.value = "Password updated.";
+    toast.success("Password updated!");
     passwordForm.value = { currentPassword: "", newPassword: "", confirmPassword: "" };
   } catch (err) {
     passwordError.value = extractErrorMessage(err);
@@ -218,6 +222,7 @@ async function saveNotificationPreferences() {
     const disabledCategories = NOTIFICATION_CATEGORIES.map((c) => c.value).filter((c) => !enabledCategories.value.has(c));
     await api.patch("/users/me/notification-preferences", { disabledCategories });
     notificationPrefsStatus.value = "Preferences saved.";
+    toast.success("Notification preferences saved!");
     await auth.fetchCurrentUser();
   } catch (err) {
     notificationPrefsStatus.value = extractErrorMessage(err);

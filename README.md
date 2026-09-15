@@ -17,6 +17,22 @@ project documents don't fully agree); this build follows the Project Documentati
 technical decision (Vue.js + Spring Boot, "familiar from coursework") since that's the one tied
 to a rationale, and it matches the Spring Boot backend that was already scaffolded.
 
+## Demo accounts
+
+Seeded directly against the running dev database so there's something real to click through
+without registering from scratch. All four use the password `Demo@1234`.
+
+| Role | Email | What's there |
+|---|---|---|
+| Seller | `demo.seller1@mycput.ac.za` | **Thabo's Prints** (Printing, verified) — A2 Poster Printing, Custom Mug Printing (low-stock badge), Business Card Design (service), an active `WELCOME10` promo code |
+| Seller | `demo.seller2@mycput.ac.za` | **Lindiwe's Bakes** (Food, verified) — Custom Cupcake Box, Birthday Cake (sold out), Cake Tasting (service), a `CUPCAKE5` promo scoped to one listing; **and** a second business, **Zanele's Crafts & Jewellery** (Other, verified) — Beaded Bracelet, Beaded Keyring |
+| Buyer | `demo.buyer@mycput.ac.za` | 2 saved listings, follows Lindiwe's Bakes, a saved search ("Food under R300"), a stock alert on the sold-out cake, an open message thread with Thabo's Prints, a CONFIRMED order for a bracelet, a 5-star review on Lindiwe's Bakes, and an answered question |
+| Admin | `demo.admin@mycput.ac.za` | Full admin console access |
+
+Business logos and product photos are `placehold.co` images tinted with the brand's own colour
+tokens and labelled with the product name, rather than random stock photography that wouldn't
+actually match what's being sold.
+
 ## What's implemented so far
 
 MVP scope (Project Documentation, Section 11.1), plus a growing set of post-MVP items that
@@ -163,6 +179,20 @@ between buyer and seller on pickup, the same as bookings already worked.
   listing matches (checked against just that one new listing when it's published, not by
   polling), and see how many new matches are waiting next to each saved search. New
   `savedsearch` module.
+- A proper logo: a hand-authored SVG "UH" monogram (Playfair Display serif, matching the brand
+  guide's colours exactly) with a graduation-cap-over-shopping-cart icon nested in its swoosh,
+  used as the favicon, in the header next to the wordmark, and as an animated splash screen shown
+  while the app's first route resolves (removed once `router.isReady()` settles, so it never
+  flashes the real UI before the auth check is done).
+- A global toast notification system (`ToastContainer.vue` + a Pinia store) with a spring-eased
+  enter, a shrinking progress bar that pauses correctly on hover (the JS auto-dismiss timer and
+  the CSS bar share the same remaining-time tracking, so they can't drift out of sync), and
+  stacking/reflow animations. Every mutating API call (POST/PATCH/PUT/DELETE) toasts automatically
+  on failure via an axios interceptor; GET requests are excluded since several of those are
+  intentionally-silent background fetches (polling, prefetching) that would otherwise spam the
+  user. Success toasts are wired into the highest-traffic actions across the app: auth, cart/
+  checkout, messaging, listings, bookings, reviews, Q&amp;A, promo codes, saved searches, and the
+  full admin console.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
@@ -174,8 +204,8 @@ test script below) — it isn't just "compiles", it actually runs.
   seller on pickup/delivery; the `payment` and `appointment` packages are still the empty stubs
   they started as.
 - Deployment/hosting decision (Section 13.1 in the docs still flags this as open).
-- Automated tests beyond the one Spring context smoke test — no unit/integration tests for
-  the use cases or controllers yet.
+- Deeper automated test coverage — `MarketplaceSmokeTest` (see below) covers the golden path end
+  to end via MockMvc, but there are no isolated unit tests per use case/controller yet.
 
 ## Database: MySQL setup
 
@@ -325,6 +355,16 @@ npm run dev
 
 Served at `http://localhost:5173` (or the next free port if that's taken); Vite proxies `/api`
 to `localhost:8081` in dev (`frontend/vite.config.ts`), so no CORS config is needed locally.
+
+## Automated smoke test
+
+`src/test/java/za/co/unilinkhub/MarketplaceSmokeTest.java` walks the same golden path as the
+curl script below, but as a real `mvn test` (MockMvc against the H2 test database, no server or
+MySQL needed): register a seller and buyer, list a product, browse/search for it, message
+between buyer and seller with unread counts, apply a promo code at checkout and confirm the
+discount + stock decrement, confirm the order, ask and answer a listing question, and save a
+search that fires a notification the moment a new listing matches it. It exists so a future
+change can't silently break one of these flows again without failing the build.
 
 ## Testing the system end-to-end (curl)
 

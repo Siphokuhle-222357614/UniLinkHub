@@ -4,12 +4,14 @@ import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
+import { useToastStore } from "@/stores/toast";
 import ListingCard from "@/components/ListingCard.vue";
 import type { BusinessContactDTO, BusinessReviewsDTO, ListingDTO, ProviderProfileDTO } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
 const followed = useFollowedProvidersStore();
+const toast = useToastStore();
 
 const profile = ref<ProviderProfileDTO | null>(null);
 const listings = ref<ListingDTO[]>([]);
@@ -97,6 +99,7 @@ async function submitReview() {
       comment: reviewComment.value || null,
     });
     reviewFormOpen.value = false;
+    toast.success("Review submitted!");
     await loadReviews(profile.value.businessId);
   } catch (err) {
     reviewError.value = extractErrorMessage(err);

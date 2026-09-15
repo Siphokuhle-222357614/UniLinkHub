@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 import type { BusinessDTO, ListingDTO, PromoCodeDTO } from "@/lib/types";
 
+const toast = useToastStore();
 const businesses = ref<BusinessDTO[]>([]);
 const selectedBusinessId = ref("");
 const listings = ref<ListingDTO[]>([]);
@@ -64,6 +66,7 @@ async function createCode() {
       scopeListingId: form.value.scopeListingId || null,
       expiresAt: form.value.expiresAt ? `${form.value.expiresAt}T23:59:59` : null,
     });
+    toast.success("Promo code created!");
     form.value = { code: "", discountType: "PERCENT", discountValue: 10, scopeListingId: "", expiresAt: "" };
     await loadForBusiness();
   } catch (err) {

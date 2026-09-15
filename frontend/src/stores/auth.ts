@@ -4,6 +4,7 @@ import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useMessagesStore } from "@/stores/messages";
+import { useToastStore } from "@/stores/toast";
 import type { AuthResponse, UserResponse } from "@/lib/types";
 
 export const useAuthStore = defineStore("auth", {
@@ -21,6 +22,7 @@ export const useAuthStore = defineStore("auth", {
     async login(email: string, password: string) {
       const { data } = await api.post<AuthResponse>("/auth/login", { email, password });
       this.applySession(data);
+      useToastStore().success(`Welcome back, ${data.user.firstName}!`);
     },
     async register(payload: {
       studentNumber: string;
@@ -30,6 +32,7 @@ export const useAuthStore = defineStore("auth", {
       password: string;
     }) {
       await api.post("/auth/register", payload);
+      useToastStore().success("Account created!", "Check the console log for your verification link.");
     },
     async fetchCurrentUser() {
       if (!this.token) {
@@ -66,6 +69,7 @@ export const useAuthStore = defineStore("auth", {
       useFollowedProvidersStore().reset();
       useNotificationsStore().reset();
       useMessagesStore().reset();
+      useToastStore().info("Signed out", "See you next time!");
     },
   },
 });

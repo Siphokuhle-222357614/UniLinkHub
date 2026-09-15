@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 import AdminNav from "@/components/AdminNav.vue";
 import type {
   AdminBusinessView,
@@ -19,6 +20,8 @@ import type {
   ReviewView,
   UserResponse,
 } from "@/lib/types";
+
+const toast = useToastStore();
 
 type Section =
   | "overview"
@@ -181,8 +184,10 @@ async function act(action: "begin-review" | "resolve" | "dismiss") {
   try {
     if (action === "begin-review") {
       await api.post(`/admin/reports/${selected.value.id}/begin-review`);
+      toast.info("Report marked under review");
     } else {
       await api.post(`/admin/reports/${selected.value.id}/${action}`, { note: adminNote.value });
+      toast.success(action === "resolve" ? "Report resolved!" : "Report dismissed");
     }
     await Promise.all([loadReports(), loadCounts()]);
   } catch (err) {
@@ -279,6 +284,7 @@ async function verify(id: string) {
   businessesError.value = "";
   try {
     await api.post(`/admin/businesses/${id}/verify`);
+    toast.success("Business verified!");
     await loadBusinesses();
   } catch (err) {
     businessesError.value = extractErrorMessage(err);
@@ -305,6 +311,7 @@ async function confirmReject(id: string) {
   try {
     await api.post(`/admin/businesses/${id}/reject`, { reason: rejectReason.value });
     rejectingBusinessId.value = null;
+    toast.info("Business rejected");
     await loadBusinesses();
   } catch (err) {
     businessesError.value = extractErrorMessage(err);
@@ -375,6 +382,7 @@ async function acceptOrChangeAccount(id: string, action: "approve" | "reactivate
   accountsError.value = "";
   try {
     await api.post(`/admin/users/${id}/${action}`);
+    toast.success(action === "approve" ? "Account approved!" : "Account reactivated!");
     await loadAccounts();
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
@@ -401,6 +409,7 @@ async function confirmSuspend(id: string) {
   try {
     await api.post(`/admin/users/${id}/suspend`, { reason: suspendReason.value });
     suspendingAccountId.value = null;
+    toast.info("Account suspended");
     await loadAccounts();
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
@@ -417,6 +426,7 @@ async function confirmPromote(id: string) {
   try {
     await api.post(`/admin/users/${id}/promote`);
     promotingAccountId.value = null;
+    toast.success("Promoted to Admin!");
     await loadAccounts();
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
@@ -476,6 +486,7 @@ async function publishAnnouncement() {
   announcementsError.value = "";
   try {
     await api.post("/admin/announcements", { message: newAnnouncementMessage.value, active: newAnnouncementActive.value });
+    toast.success("Announcement published!");
     newAnnouncementMessage.value = "";
     newAnnouncementActive.value = true;
     await loadAnnouncements();
@@ -491,6 +502,7 @@ async function deactivateAnnouncement(id: string) {
   announcementsError.value = "";
   try {
     await api.post(`/admin/announcements/${id}/deactivate`);
+    toast.info("Announcement deactivated");
     await loadAnnouncements();
   } catch (err) {
     announcementsError.value = extractErrorMessage(err);
@@ -597,6 +609,7 @@ async function removeReview(id: string) {
   reviewsError.value = "";
   try {
     await api.delete(`/admin/reviews/${id}`);
+    toast.success("Review removed");
     await loadReviewsSection();
   } catch (err) {
     reviewsError.value = extractErrorMessage(err);
@@ -657,6 +670,7 @@ async function sendBroadcast() {
       message: broadcastMessage.value,
     });
     broadcastStatus.value = `Sent to ${data.recipientCount} user(s).`;
+    toast.success("Notification sent!", `Delivered to ${data.recipientCount} user(s).`);
     broadcastMessage.value = "";
   } catch (err) {
     broadcastStatus.value = extractErrorMessage(err);

@@ -5,6 +5,7 @@ import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useCartStore } from "@/stores/cart";
+import { useToastStore } from "@/stores/toast";
 import { recordView } from "@/lib/recentlyViewed";
 import ListingCard from "@/components/ListingCard.vue";
 import type { BusinessDTO, ListingDTO, PromoCodeDTO, QuestionView } from "@/lib/types";
@@ -14,6 +15,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
 const cart = useCartStore();
+const toast = useToastStore();
 
 const listing = ref<ListingDTO | null>(null);
 const business = ref<BusinessDTO | null>(null);
@@ -92,6 +94,7 @@ async function sendMessage() {
       body: messageBody.value,
     });
     messageOpen.value = false;
+    toast.success("Message sent!");
     router.push(`/messages/${data.id}`);
   } catch (err) {
     messageStatus.value = extractErrorMessage(err);
@@ -107,6 +110,7 @@ function addToCart() {
   if (!listing.value) return;
   cart.add(listing.value, 1);
   addedToCart.value = true;
+  toast.success("Added to cart", listing.value.name);
   setTimeout(() => (addedToCart.value = false), 2500);
 }
 
@@ -131,6 +135,7 @@ async function submitQuestion() {
   try {
     await api.post(`/listings/${listing.value.id}/questions`, { questionText: questionDraft.value });
     questionDraft.value = "";
+    toast.success("Question posted!");
     await loadQuestions();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -160,6 +165,7 @@ async function submitBooking() {
     bookingStatus.value = "Request sent - you'll get a notification once the seller responds.";
     bookingOpen.value = false;
     bookingNote.value = "";
+    toast.success("Booking requested!", "You'll get a notification once the seller responds.");
   } catch (err) {
     bookingStatus.value = extractErrorMessage(err);
   } finally {

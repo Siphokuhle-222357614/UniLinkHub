@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
+import { useToastStore } from "@/stores/toast";
 
 export const api = axios.create({
   baseURL: "/api",
@@ -29,8 +30,16 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const method = (error.config?.method ?? "get").toLowerCase();
     if (error.response?.status === 401) {
       setToken(null);
+    } else if (method !== "get") {
+      // Only mutating requests (POST/PATCH/PUT/DELETE) toast on failure - those are always a
+      // direct result of something the user just clicked. GET requests are excluded because many
+      // of them are silent background/nice-to-have fetches (polling, prefetching stats) that
+      // deliberately swallow errors elsewhere; toasting those would spam the user for failures
+      // they never asked about. A failed page-load GET already has its own inline error state.
+      useToastStore().error("Something went wrong", extractErrorMessage(error));
     }
     return Promise.reject(error);
   },

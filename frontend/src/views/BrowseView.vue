@@ -4,12 +4,14 @@ import { useRoute, useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
 import { useAuthStore } from "@/stores/auth";
+import { useToastStore } from "@/stores/toast";
 import type { ListingDTO, ProviderProfileDTO } from "@/lib/types";
 import ListingCard from "@/components/ListingCard.vue";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const toast = useToastStore();
 
 const listings = ref<ListingDTO[]>([]);
 const categories = useCategories();
@@ -162,6 +164,7 @@ async function saveSearch() {
       listingType: kind.value === "ALL" ? null : kind.value,
     });
     searchSaved.value = true;
+    toast.success("Search saved!", "We'll notify you about new matches.");
     setTimeout(() => (searchSaved.value = false), 4000);
   } catch (err) {
     error.value = extractErrorMessage(err);

@@ -2,9 +2,11 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
+import { useToastStore } from "@/stores/toast";
 import type { SavedSearchDTO } from "@/lib/types";
 
 const router = useRouter();
+const toast = useToastStore();
 const searches = ref<SavedSearchDTO[]>([]);
 const loading = ref(false);
 const error = ref("");
@@ -57,6 +59,7 @@ async function remove(s: SavedSearchDTO) {
   deletingId.value = s.id;
   try {
     await api.delete(`/saved-searches/${s.id}`);
+    toast.info("Saved search removed");
     await load();
   } catch (err) {
     error.value = extractErrorMessage(err);

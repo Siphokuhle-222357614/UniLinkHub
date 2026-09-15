@@ -3,10 +3,12 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCartStore } from "@/stores/cart";
+import { useToastStore } from "@/stores/toast";
 import type { OrderDTO } from "@/lib/types";
 
 const router = useRouter();
 const cart = useCartStore();
+const toast = useToastStore();
 
 const fulfilmentMethod = ref<"PICKUP" | "DELIVERY">("PICKUP");
 const note = ref("");
@@ -30,6 +32,7 @@ async function placeOrder() {
       promoCode: promoCode.value || null,
     });
     cart.clear();
+    toast.success("Order placed!", "The seller will confirm it shortly.");
     router.push({ name: "my-orders", query: { placed: data.length.toString() } });
   } catch (err) {
     error.value = extractErrorMessage(err);
