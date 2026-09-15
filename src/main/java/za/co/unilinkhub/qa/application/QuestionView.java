@@ -12,6 +12,8 @@ public record QuestionView(
         String questionText,
         String answerText,
         LocalDateTime answeredAt,
+        boolean flagged,
+        int flagCount,
         LocalDateTime createdAt
 ) {
 }

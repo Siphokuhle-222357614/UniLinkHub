@@ -441,6 +441,7 @@ onMounted(async () => {
         <template v-if="auth.isSeller">
           <RouterLink to="/orders/selling" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Selling: orders</RouterLink>
           <RouterLink to="/promo-codes" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Promo codes</RouterLink>
+          <RouterLink to="/questions" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Listing Q&amp;A</RouterLink>
         </template>
       </div>
     </div>
@@ -836,7 +837,10 @@ onMounted(async () => {
       <div v-if="pendingQuestions.length > 0" class="card space-y-3">
         <div class="flex items-center justify-between">
           <h2 class="font-display text-lg font-semibold text-uni-navy">Questions awaiting your reply</h2>
-          <span class="badge bg-warning/15 text-warning">{{ pendingQuestions.length }} pending</span>
+          <div class="flex items-center gap-3">
+            <span class="badge bg-warning/15 text-warning">{{ pendingQuestions.length }} pending</span>
+            <RouterLink to="/questions" class="text-xs font-medium text-campus-teal underline">View all &rarr;</RouterLink>
+          </div>
         </div>
         <div class="space-y-3">
           <div v-for="q in pendingQuestions" :key="q.id" class="rounded-control border border-light-grey p-3">

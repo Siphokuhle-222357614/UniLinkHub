@@ -169,9 +169,14 @@ between buyer and seller on pickup, the same as bookings already worked.
   same low-stock-notification path a manual stock edit uses. A cart spanning several sellers
   becomes one order per business, never one order no single seller could act on. New `ordering`
   module (filled in the previously-empty stub package).
-- Listing Q&amp;A: any signed-in student can publicly ask a question on a listing; the seller
-  answers from a "Questions awaiting your reply" panel on their dashboard; both the question and
-  answer are visible to everyone, not just the asker. New `qa` module.
+- Listing Q&amp;A: any signed-in student can publicly ask a question on a listing (a textarea with
+  a character counter, an avatar-initial per asker, and relative timestamps); the seller answers
+  from a "Questions awaiting your reply" panel on their dashboard or a full Q&amp;A management page
+  (`/questions` - filter by all/pending/answered, search, edit a past answer); both the question
+  and answer are visible to everyone, not just the asker. Any signed-in student can flag an
+  inappropriate question (mirroring how reviews are flagged), and admin gets a moderation queue
+  plus stats (total/answered/pending/flagged), with removals recorded in the activity log. New
+  `qa` module.
 - Seller promo codes: percentage or fixed-amount discounts, scoped to a business or to one
   listing, with an expiry and an active/off toggle; a matching listing shows the discounted
   price and a promo badge; admin gets a redemptions/discount-given overview. New `promo` module.

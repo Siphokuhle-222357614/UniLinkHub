@@ -15,4 +15,12 @@ public interface QuestionRepository {
     List<Question> findByListingId(UUID listingId);
 
     List<Question> findByAnswerTextIsNullAndListingIdIn(List<UUID> listingIds);
+
+    List<Question> findByListingIdIn(List<UUID> listingIds);
+
+    List<Question> findByFlaggedTrue();
+
+    List<Question> findAll();
+
+    void deleteById(UUID id);
 }

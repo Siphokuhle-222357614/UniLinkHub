@@ -42,6 +42,12 @@ public class Question {
     @Column(name = "answered_at")
     private LocalDateTime answeredAt;
 
+    @Column(nullable = false)
+    private boolean flagged = false;
+
+    @Column(name = "flag_count", nullable = false)
+    private int flagCount = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -59,5 +65,10 @@ public class Question {
     public void answer(String answerText) {
         this.answerText = answerText;
         this.answeredAt = LocalDateTime.now();
+    }
+
+    public void flag() {
+        this.flagCount++;
+        this.flagged = true;
     }
 }

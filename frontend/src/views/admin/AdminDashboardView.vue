@@ -13,6 +13,8 @@ import type {
   ListingDTO,
   OrderStatsDTO,
   PromoStatsDTO,
+  QuestionStatsDTO,
+  QuestionView,
   ReportSummaryView,
   ReportStatus,
   ReportStatusCounts,
@@ -34,6 +36,7 @@ type Section =
   | "reviews"
   | "orders"
   | "promos"
+  | "questions"
   | "broadcast";
 const activeSection = ref<Section>("overview");
 
@@ -515,7 +518,7 @@ async function deactivateAnnouncement(id: string) {
 const activityEntries = ref<AuditLogEntryDTO[]>([]);
 const activityLoading = ref(false);
 const activityError = ref("");
-const activityFilter = ref<"ALL" | "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT" | "REVIEW">("ALL");
+const activityFilter = ref<"ALL" | "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT" | "REVIEW" | "QUESTION">("ALL");
 
 const activityFilters: { value: typeof activityFilter.value; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -523,6 +526,7 @@ const activityFilters: { value: typeof activityFilter.value; label: string }[] =
   { value: "ACCOUNT", label: "Accounts" },
   { value: "REPORT", label: "Reports" },
   { value: "REVIEW", label: "Reviews" },
+  { value: "QUESTION", label: "Q&A" },
   { value: "ANNOUNCEMENT", label: "Announcements" },
 ];
 
@@ -531,6 +535,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   ACCOUNT: "⏸",
   REPORT: "🚩",
   REVIEW: "⭐",
+  QUESTION: "❓",
   ANNOUNCEMENT: "📢",
 };
 
@@ -654,6 +659,44 @@ async function loadPromoStats() {
   }
 }
 
+// ---- Listing Q&A ----
+const questionStats = ref<QuestionStatsDTO | null>(null);
+const flaggedQuestions = ref<QuestionView[]>([]);
+const questionsLoading = ref(false);
+const questionsError = ref("");
+const removingQuestionId = ref<string | null>(null);
+
+async function loadQuestionsSection() {
+  questionsLoading.value = true;
+  questionsError.value = "";
+  try {
+    const [{ data: stats }, { data: flagged }] = await Promise.all([
+      api.get<QuestionStatsDTO>("/admin/questions/stats"),
+      api.get<QuestionView[]>("/admin/questions", { params: { flaggedOnly: true } }),
+    ]);
+    questionStats.value = stats;
+    flaggedQuestions.value = flagged;
+  } catch (err) {
+    questionsError.value = extractErrorMessage(err);
+  } finally {
+    questionsLoading.value = false;
+  }
+}
+
+async function removeQuestion(id: string) {
+  removingQuestionId.value = id;
+  questionsError.value = "";
+  try {
+    await api.delete(`/admin/questions/${id}`);
+    toast.success("Question removed");
+    await loadQuestionsSection();
+  } catch (err) {
+    questionsError.value = extractErrorMessage(err);
+  } finally {
+    removingQuestionId.value = null;
+  }
+}
+
 // ---- Broadcast notification ----
 const broadcastAudience = ref<"ALL_STUDENTS" | "ALL_SELLERS" | "PENDING_BUSINESS_OWNERS">("ALL_STUDENTS");
 const broadcastMessage = ref("");
@@ -692,6 +735,7 @@ onMounted(async () => {
     loadReviewsSection(),
     loadOrderStats(),
     loadPromoStats(),
+    loadQuestionsSection(),
   ]);
 });
 </script>
@@ -780,6 +824,14 @@ onMounted(async () => {
           @click="activeSection = 'promos'"
         >
           Promo codes
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'questions' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'questions'"
+        >
+          Q&amp;A
+          <span v-if="flaggedQuestions.length > 0" class="ml-1.5 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">{{ flaggedQuestions.length }}</span>
         </button>
         <button
           class="border-b-2 px-1 pb-3 text-sm font-semibold"
@@ -1420,6 +1472,7 @@ onMounted(async () => {
                 'bg-warning/15 text-warning': entry.category === 'ACCOUNT',
                 'bg-charcoal/10 text-charcoal': entry.category === 'REPORT',
                 'bg-academic-gold/20 text-uni-navy': entry.category === 'REVIEW',
+                'bg-slate-blue/15 text-slate-blue': entry.category === 'QUESTION',
                 'bg-info/15 text-info': entry.category === 'ANNOUNCEMENT',
               }"
             >
@@ -1634,6 +1687,58 @@ onMounted(async () => {
               <span class="badge" :class="p.active ? 'bg-success/15 text-success' : 'bg-medium-grey/15 text-medium-grey'">
                 {{ p.usageCount }} redemption{{ p.usageCount === 1 ? "" : "s" }}
               </span>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Listing Q&A section -->
+      <section v-else-if="activeSection === 'questions'" class="space-y-5">
+        <p v-if="questionsError" class="text-sm text-danger">{{ questionsError }}</p>
+        <p v-else-if="questionsLoading || !questionStats" class="text-sm text-medium-grey">Loading...</p>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Total questions</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ questionStats.totalQuestions }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Answered</p>
+              <p class="font-display text-2xl font-bold text-success">{{ questionStats.answeredCount }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Pending</p>
+              <p class="font-display text-2xl font-bold text-warning">{{ questionStats.pendingCount }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Flagged</p>
+              <p class="font-display text-2xl font-bold text-danger">{{ questionStats.flaggedCount }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">Flagged for moderation</h3>
+            <p v-if="flaggedQuestions.length === 0" class="card text-sm text-medium-grey">No flagged questions right now.</p>
+            <div v-else class="card !p-0 divide-y divide-light-grey">
+              <div v-for="q in flaggedQuestions" :key="q.id" class="flex items-start justify-between gap-3 px-4 py-3.5">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-uni-navy">{{ q.askerName }}</span>
+                    <span class="badge bg-danger/15 text-danger">Flagged &times;{{ q.flagCount }}</span>
+                  </div>
+                  <p class="mt-1 text-sm text-charcoal">{{ q.questionText }}</p>
+                  <p v-if="q.answerText" class="mt-1 text-sm text-medium-grey">Answer: {{ q.answerText }}</p>
+                  <p class="mt-1 text-xs text-medium-grey">on {{ q.listingName }}</p>
+                </div>
+                <button
+                  class="inline-flex shrink-0 items-center justify-center rounded-control border border-danger bg-white px-3 py-1.5 text-xs font-semibold text-danger disabled:opacity-50"
+                  :disabled="removingQuestionId === q.id"
+                  @click="removeQuestion(q.id)"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           </div>
         </template>

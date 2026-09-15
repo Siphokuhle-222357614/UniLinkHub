@@ -115,9 +115,12 @@ function addToCart() {
 }
 
 // ---- Listing Q&A ----
+const QUESTION_MAX_LENGTH = 1000;
 const questions = ref<QuestionView[]>([]);
 const questionDraft = ref("");
 const questionSubmitting = ref(false);
+const flaggingQuestionId = ref<string | null>(null);
+const flaggedQuestionIds = ref<Set<string>>(new Set());
 
 async function loadQuestions() {
   if (!listing.value) return;
@@ -133,7 +136,9 @@ async function submitQuestion() {
   if (!listing.value || !questionDraft.value.trim()) return;
   questionSubmitting.value = true;
   try {
-    await api.post(`/listings/${listing.value.id}/questions`, { questionText: questionDraft.value });
+    await api.post(`/listings/${listing.value.id}/questions`, {
+      questionText: questionDraft.value.slice(0, QUESTION_MAX_LENGTH),
+    });
     questionDraft.value = "";
     toast.success("Question posted!");
     await loadQuestions();
@@ -142,6 +147,38 @@ async function submitQuestion() {
   } finally {
     questionSubmitting.value = false;
   }
+}
+
+async function flagQuestion(id: string) {
+  flaggingQuestionId.value = id;
+  try {
+    await api.post(`/questions/${id}/flag`);
+    flaggedQuestionIds.value.add(id);
+    toast.info("Question flagged", "Thanks - our team will take a look.");
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    flaggingQuestionId.value = null;
+  }
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
 }
 
 // ---- Request a booking (services) ----
@@ -373,35 +410,66 @@ onMounted(load);
 
     <!-- Questions & answers -->
     <div class="card space-y-3">
-      <div>
-        <h2 class="font-display text-lg font-semibold text-uni-navy">Questions &amp; answers</h2>
-        <p class="text-xs text-medium-grey">Ask the seller anything - your question and their answer are visible to everyone.</p>
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="font-display text-lg font-semibold text-uni-navy">Questions &amp; answers</h2>
+          <p class="text-xs text-medium-grey">Ask the seller anything - your question and their answer are visible to everyone.</p>
+        </div>
+        <span v-if="questions.length > 0" class="badge bg-soft-grey text-medium-grey shrink-0">
+          {{ questions.length }} question{{ questions.length === 1 ? "" : "s" }}
+        </span>
       </div>
 
-      <div v-if="auth.isAuthenticated" class="flex gap-2">
-        <input v-model="questionDraft" class="input-field" placeholder="Ask a question about this listing..." @keyup.enter="submitQuestion" />
-        <button class="btn-secondary shrink-0 text-sm" :disabled="questionSubmitting || !questionDraft.trim()" @click="submitQuestion">
-          {{ questionSubmitting ? "Posting..." : "Post" }}
-        </button>
+      <div v-if="auth.isAuthenticated" class="space-y-1">
+        <textarea
+          v-model="questionDraft"
+          rows="2"
+          :maxlength="QUESTION_MAX_LENGTH"
+          class="input-field resize-none"
+          placeholder="Ask a question about this listing..."
+        ></textarea>
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] text-medium-grey">{{ questionDraft.length }} / {{ QUESTION_MAX_LENGTH }}</span>
+          <button class="btn-secondary shrink-0 text-sm" :disabled="questionSubmitting || !questionDraft.trim()" @click="submitQuestion">
+            {{ questionSubmitting ? "Posting..." : "Post question" }}
+          </button>
+        </div>
       </div>
       <p v-else class="text-sm text-medium-grey">
         <RouterLink to="/login" class="text-campus-teal underline">Log in</RouterLink> to ask a question.
       </p>
 
       <p v-if="questions.length === 0" class="text-sm text-medium-grey">No questions yet - be the first to ask.</p>
-      <div v-else class="space-y-3 border-t border-light-grey pt-3">
-        <div v-for="q in questions" :key="q.id">
-          <p class="text-sm text-charcoal"><span class="font-semibold">{{ q.askerName }}</span> asked</p>
-          <p class="text-sm text-charcoal">{{ q.questionText }}</p>
-          <div v-if="q.answerText" class="mt-2 flex gap-2 rounded-control bg-campus-teal/5 p-3">
-            <div class="flex-1">
-              <p class="text-xs font-semibold text-uni-navy">
-                {{ business?.businessName }} <span class="ml-1 rounded-full bg-uni-navy/10 px-1.5 py-0.5 text-[10px] font-semibold">Seller</span>
-              </p>
-              <p class="mt-0.5 text-sm text-charcoal">{{ q.answerText }}</p>
-            </div>
+      <div v-else class="space-y-4 border-t border-light-grey pt-3">
+        <div v-for="q in questions" :key="q.id" class="flex gap-3">
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-blue text-[11px] font-semibold text-white">
+            {{ initials(q.askerName) }}
           </div>
-          <span v-else class="badge mt-1.5 bg-warning/15 text-warning">Awaiting seller reply</span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-charcoal"><span class="font-semibold">{{ q.askerName }}</span> asked &middot; {{ relativeTime(q.createdAt) }}</p>
+              <button
+                v-if="auth.isAuthenticated && auth.user?.id !== q.askerId && !flaggedQuestionIds.has(q.id)"
+                class="shrink-0 text-[11px] font-medium text-medium-grey hover:text-danger disabled:opacity-50"
+                :disabled="flaggingQuestionId === q.id"
+                @click="flagQuestion(q.id)"
+              >
+                Flag
+              </button>
+              <span v-else-if="flaggedQuestionIds.has(q.id)" class="shrink-0 text-[11px] font-medium text-medium-grey">Flagged</span>
+            </div>
+            <p class="text-sm text-charcoal">{{ q.questionText }}</p>
+            <div v-if="q.answerText" class="mt-2 flex gap-2 rounded-control bg-campus-teal/5 p-3">
+              <div class="flex-1">
+                <p class="text-xs font-semibold text-uni-navy">
+                  {{ business?.businessName }} <span class="ml-1 rounded-full bg-uni-navy/10 px-1.5 py-0.5 text-[10px] font-semibold">Seller</span>
+                  <span class="ml-1.5 font-normal text-medium-grey">&middot; {{ relativeTime(q.answeredAt!) }}</span>
+                </p>
+                <p class="mt-0.5 text-sm text-charcoal">{{ q.answerText }}</p>
+              </div>
+            </div>
+            <span v-else class="badge mt-1.5 bg-warning/15 text-warning">Awaiting seller reply</span>
+          </div>
         </div>
       </div>
     </div>

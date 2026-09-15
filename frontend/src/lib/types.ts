@@ -163,7 +163,7 @@ export interface AnnouncementDTO {
 
 export interface AuditLogEntryDTO {
   id: string;
-  category: "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT" | "REVIEW";
+  category: "BUSINESS" | "ACCOUNT" | "REPORT" | "ANNOUNCEMENT" | "REVIEW" | "QUESTION";
   description: string;
   adminName: string;
   createdAt: string;
@@ -315,7 +315,16 @@ export interface QuestionView {
   questionText: string;
   answerText: string | null;
   answeredAt: string | null;
+  flagged: boolean;
+  flagCount: number;
   createdAt: string;
+}
+
+export interface QuestionStatsDTO {
+  totalQuestions: number;
+  answeredCount: number;
+  pendingCount: number;
+  flaggedCount: number;
 }
 
 // ---- Promo codes ----

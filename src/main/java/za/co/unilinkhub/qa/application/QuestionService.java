@@ -2,6 +2,7 @@ package za.co.unilinkhub.qa.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
@@ -27,6 +28,7 @@ public class QuestionService {
     private final BusinessRepository businessRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final AuditLogService auditLogService;
 
     public QuestionView ask(UUID askerId, UUID listingId, String questionText) {
         Listing listing = listingRepository.findById(listingId)
@@ -57,17 +59,67 @@ public class QuestionService {
     }
 
     public List<QuestionView> pendingForSeller(UUID sellerId) {
-        List<UUID> listingIds = businessRepository.findByOwnerId(sellerId).stream()
-                .map(Business::getId)
-                .flatMap(businessId -> listingRepository.findByBusinessId(businessId).stream())
-                .map(Listing::getId)
-                .toList();
+        List<UUID> listingIds = sellerListingIds(sellerId);
         if (listingIds.isEmpty()) {
             return List.of();
         }
         return questionRepository.findByAnswerTextIsNullAndListingIdIn(listingIds).stream()
                 .sorted(Comparator.comparing(Question::getCreatedAt))
                 .map(this::toView)
+                .toList();
+    }
+
+    /**
+     * Every question across a seller's listings, answered or not - the dashboard widget only
+     * shows what's pending, but a seller reviewing their own Q&A history needs the full picture.
+     */
+    public List<QuestionView> listForSeller(UUID sellerId) {
+        List<UUID> listingIds = sellerListingIds(sellerId);
+        if (listingIds.isEmpty()) {
+            return List.of();
+        }
+        return questionRepository.findByListingIdIn(listingIds).stream()
+                .sorted(Comparator.comparing(Question::getCreatedAt).reversed())
+                .map(this::toView)
+                .toList();
+    }
+
+    public void flag(UUID questionId) {
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+        question.flag();
+        questionRepository.save(question);
+    }
+
+    public List<QuestionView> adminList(boolean flaggedOnly) {
+        List<Question> questions = flaggedOnly ? questionRepository.findByFlaggedTrue() : questionRepository.findAll();
+        return questions.stream()
+                .sorted(Comparator.comparing(Question::getCreatedAt).reversed())
+                .map(this::toView)
+                .toList();
+    }
+
+    public void adminRemove(UUID questionId, UUID adminId) {
+        Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+        String listingName = listingRepository.findById(question.getListingId()).map(Listing::getName).orElse("a deleted listing");
+        questionRepository.deleteById(questionId);
+        String adminName = userRepository.findById(adminId).map(User::getFullName).orElse("Unknown admin");
+        auditLogService.record(adminName, "QUESTION", "Removed a question on \"" + listingName + "\"");
+    }
+
+    public QuestionStatsDTO adminStats() {
+        List<Question> all = questionRepository.findAll();
+        long answered = all.stream().filter(q -> q.getAnswerText() != null).count();
+        long flagged = all.stream().filter(Question::isFlagged).count();
+        return new QuestionStatsDTO(all.size(), answered, all.size() - answered, flagged);
+    }
+
+    private List<UUID> sellerListingIds(UUID sellerId) {
+        return businessRepository.findByOwnerId(sellerId).stream()
+                .map(Business::getId)
+                .flatMap(businessId -> listingRepository.findByBusinessId(businessId).stream())
+                .map(Listing::getId)
                 .toList();
     }
 
@@ -88,6 +140,7 @@ public class QuestionService {
         String listingName = listingRepository.findById(question.getListingId()).map(Listing::getName).orElse("Deleted listing");
         String askerName = userRepository.findById(question.getAskerId()).map(User::getFullName).orElse("Deleted account");
         return new QuestionView(question.getId(), question.getListingId(), listingName, question.getAskerId(), askerName,
-                question.getQuestionText(), question.getAnswerText(), question.getAnsweredAt(), question.getCreatedAt());
+                question.getQuestionText(), question.getAnswerText(), question.getAnsweredAt(),
+                question.isFlagged(), question.getFlagCount(), question.getCreatedAt());
     }
 }

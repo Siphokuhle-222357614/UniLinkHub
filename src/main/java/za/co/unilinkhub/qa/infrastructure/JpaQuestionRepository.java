@@ -13,4 +13,10 @@ public interface JpaQuestionRepository extends JpaRepository<Question, UUID>, Qu
 
     @Override
     List<Question> findByAnswerTextIsNullAndListingIdIn(List<UUID> listingIds);
+
+    @Override
+    List<Question> findByListingIdIn(List<UUID> listingIds);
+
+    @Override
+    List<Question> findByFlaggedTrue();
 }
