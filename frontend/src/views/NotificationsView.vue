@@ -12,14 +12,22 @@ const CATEGORY_ICONS: Record<string, string> = {
   STOCK: "📦",
   REVIEW: "⭐",
   ANNOUNCEMENT: "📢",
+  MESSAGE: "💬",
+  ORDER: "📦",
+  QUESTION: "❓",
+  SAVED_SEARCH: "🔍",
 };
 
 const filters: { value: "ALL" | NotificationCategory; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: "BUSINESS", label: "Verifications" },
   { value: "BOOKING", label: "Bookings" },
+  { value: "ORDER", label: "Orders" },
+  { value: "MESSAGE", label: "Messages" },
+  { value: "QUESTION", label: "Q&A" },
   { value: "STOCK", label: "Stock & price" },
   { value: "REVIEW", label: "Reviews" },
+  { value: "SAVED_SEARCH", label: "Saved searches" },
   { value: "ANNOUNCEMENT", label: "Announcements" },
 ];
 

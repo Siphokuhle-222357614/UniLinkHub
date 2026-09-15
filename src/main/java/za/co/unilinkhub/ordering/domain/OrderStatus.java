@@ -1,4 +1,9 @@
 package za.co.unilinkhub.ordering.domain;
 
-public class OrderStatus {
+public enum OrderStatus {
+    PLACED,
+    CONFIRMED,
+    READY,
+    COMPLETED,
+    CANCELLED
 }

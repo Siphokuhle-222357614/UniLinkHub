@@ -169,7 +169,16 @@ export interface AuditLogEntryDTO {
   createdAt: string;
 }
 
-export type NotificationCategory = "BUSINESS" | "BOOKING" | "STOCK" | "REVIEW" | "ANNOUNCEMENT";
+export type NotificationCategory =
+  | "BUSINESS"
+  | "BOOKING"
+  | "STOCK"
+  | "REVIEW"
+  | "ANNOUNCEMENT"
+  | "MESSAGE"
+  | "ORDER"
+  | "QUESTION"
+  | "SAVED_SEARCH";
 
 export interface NotificationDTO {
   id: string;
@@ -231,4 +240,118 @@ export interface ReviewStatsDTO {
   reviewedBusinessCount: number;
   topRated: { businessName: string; average: number; count: number }[];
   lowestRated: { businessName: string; average: number; count: number }[];
+}
+
+// ---- Messaging ----
+export interface ConversationSummaryView {
+  id: string;
+  businessId: string;
+  businessName: string;
+  listingId: string | null;
+  listingName: string | null;
+  counterpartId: string;
+  counterpartName: string;
+  iAmSeller: boolean;
+  lastMessage: string;
+  lastMessageAt: string;
+  unreadCount: number;
+}
+
+export interface MessageDTO {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+// ---- Orders ----
+export type OrderStatus = "PLACED" | "CONFIRMED" | "READY" | "COMPLETED" | "CANCELLED";
+
+export interface OrderItemDTO {
+  listingId: string;
+  listingName: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+export interface OrderDTO {
+  id: string;
+  buyerId: string;
+  buyerName: string;
+  businessId: string;
+  businessName: string;
+  status: OrderStatus;
+  fulfilmentMethod: string;
+  note: string | null;
+  promoCode: string | null;
+  subtotal: number;
+  discountAmount: number;
+  total: number;
+  cancelReason: string | null;
+  items: OrderItemDTO[];
+  createdAt: string;
+}
+
+export interface OrderStatsDTO {
+  totalOrders: number;
+  grossValue: number;
+  placed: number;
+  confirmed: number;
+  ready: number;
+  completed: number;
+  cancelled: number;
+  recentOrders: OrderDTO[];
+}
+
+// ---- Listing Q&A ----
+export interface QuestionView {
+  id: string;
+  listingId: string;
+  listingName: string;
+  askerId: string;
+  askerName: string;
+  questionText: string;
+  answerText: string | null;
+  answeredAt: string | null;
+  createdAt: string;
+}
+
+// ---- Promo codes ----
+export type DiscountType = "PERCENT" | "FIXED";
+
+export interface PromoCodeDTO {
+  id: string;
+  businessId: string;
+  code: string;
+  discountType: DiscountType;
+  discountValue: number;
+  scopeListingId: string | null;
+  scopeListingName: string | null;
+  expiresAt: string | null;
+  active: boolean;
+  usable: boolean;
+  usageCount: number;
+  createdAt: string;
+}
+
+export interface PromoStatsDTO {
+  activeCount: number;
+  totalRedemptions: number;
+  totalDiscountGiven: number;
+  topUsed: { code: string; businessName: string; discountLabel: string; usageCount: number; active: boolean }[];
+}
+
+// ---- Saved searches ----
+export interface SavedSearchDTO {
+  id: string;
+  label: string;
+  keyword: string | null;
+  category: string | null;
+  maxPrice: number | null;
+  listingType: string | null;
+  alertsEnabled: boolean;
+  newMatchesCount: number;
+  createdAt: string;
 }

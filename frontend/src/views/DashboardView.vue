@@ -7,7 +7,7 @@ import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
 import ListingCard from "@/components/ListingCard.vue";
-import type { BookingSummaryView, BusinessDTO, BusinessStatsDTO, ListingDTO, ReportStatus, ReportSummaryView } from "@/lib/types";
+import type { BookingSummaryView, BusinessDTO, BusinessStatsDTO, ListingDTO, QuestionView, ReportStatus, ReportSummaryView } from "@/lib/types";
 
 const auth = useAuthStore();
 const saved = useSavedListingsStore();
@@ -223,6 +223,36 @@ async function confirmDecline(id: string) {
   }
 }
 
+// ---- Seller: pending questions ----
+const pendingQuestions = ref<QuestionView[]>([]);
+const answerDrafts = ref<Record<string, string>>({});
+const answeringId = ref<string | null>(null);
+
+async function loadPendingQuestions() {
+  if (!auth.isSeller) return;
+  try {
+    const { data } = await api.get<QuestionView[]>("/questions/pending");
+    pendingQuestions.value = data;
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  }
+}
+
+async function answerQuestion(id: string) {
+  const answerText = answerDrafts.value[id];
+  if (!answerText?.trim()) return;
+  answeringId.value = id;
+  try {
+    await api.post(`/questions/${id}/answer`, { answerText });
+    delete answerDrafts.value[id];
+    await loadPendingQuestions();
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    answeringId.value = null;
+  }
+}
+
 async function loadBusinesses() {
   if (!auth.isSeller) return;
   try {
@@ -384,7 +414,7 @@ async function saveEdit(listing: ListingDTO) {
 
 onMounted(async () => {
   recentlyViewed.value = getRecentlyViewed();
-  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved(), followed.fetchFollowed(), loadSellerBookings()]);
+  await Promise.all([loadBusinesses(), loadReports(), saved.fetchSaved(), followed.fetchFollowed(), loadSellerBookings(), loadPendingQuestions()]);
   await loadRecommended();
 });
 </script>
@@ -396,6 +426,15 @@ onMounted(async () => {
         Welcome, {{ auth.user?.firstName }}
       </h1>
       <p class="text-sm text-medium-grey">{{ auth.user?.email }} · {{ auth.user?.studentNumber }}</p>
+      <div class="mt-3 flex flex-wrap gap-2 border-t border-light-grey pt-3">
+        <RouterLink to="/orders" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">My orders</RouterLink>
+        <RouterLink to="/saved-searches" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Saved searches</RouterLink>
+        <RouterLink to="/messages" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Messages</RouterLink>
+        <template v-if="auth.isSeller">
+          <RouterLink to="/orders/selling" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Selling: orders</RouterLink>
+          <RouterLink to="/promo-codes" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Promo codes</RouterLink>
+        </template>
+      </div>
     </div>
 
     <p v-if="error" class="text-sm text-danger">{{ error }}</p>
@@ -781,6 +820,25 @@ onMounted(async () => {
                   Decline booking
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="pendingQuestions.length > 0" class="card space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="font-display text-lg font-semibold text-uni-navy">Questions awaiting your reply</h2>
+          <span class="badge bg-warning/15 text-warning">{{ pendingQuestions.length }} pending</span>
+        </div>
+        <div class="space-y-3">
+          <div v-for="q in pendingQuestions" :key="q.id" class="rounded-control border border-light-grey p-3">
+            <p class="text-xs text-medium-grey">{{ q.askerName }} asked on <span class="font-medium text-charcoal">{{ q.listingName }}</span></p>
+            <p class="mt-1 text-sm font-medium text-charcoal">{{ q.questionText }}</p>
+            <div class="mt-2 flex gap-2">
+              <input v-model="answerDrafts[q.id]" class="input-field" placeholder="Type your answer..." @keyup.enter="answerQuestion(q.id)" />
+              <button class="btn-primary shrink-0 text-sm" :disabled="answeringId === q.id || !answerDrafts[q.id]?.trim()" @click="answerQuestion(q.id)">
+                Reply
+              </button>
             </div>
           </div>
         </div>

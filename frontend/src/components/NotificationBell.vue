@@ -14,6 +14,10 @@ const CATEGORY_ICONS: Record<string, string> = {
   STOCK: "📦",
   REVIEW: "⭐",
   ANNOUNCEMENT: "📢",
+  MESSAGE: "💬",
+  ORDER: "📦",
+  QUESTION: "❓",
+  SAVED_SEARCH: "🔍",
 };
 
 function relativeTime(iso: string): string {

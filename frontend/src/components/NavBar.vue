@@ -2,6 +2,8 @@
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import NotificationBell from "@/components/NotificationBell.vue";
+import MessagesIcon from "@/components/MessagesIcon.vue";
+import CartDrawer from "@/components/CartDrawer.vue";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -42,6 +44,8 @@ function handleLogout() {
           >
             Admin console
           </RouterLink>
+          <CartDrawer />
+          <MessagesIcon />
           <NotificationBell />
           <button class="btn-secondary text-sm" @click="handleLogout">Log out</button>
         </template>

@@ -19,11 +19,12 @@ to a rationale, and it matches the Spring Boot backend that was already scaffold
 
 ## What's implemented so far
 
-MVP scope (Project Documentation, Section 11.1), plus a few post-MVP items that turned out to
-be small enough to build well beyond that scope: ratings/reviews, in-app notifications, and a
-lightweight booking-request flow for services. Full in-app messaging and payments remain out of
-scope and are still the empty stub packages they started as - a booking request or a review
-comment is the closest thing to messaging here, not a real chat.
+MVP scope (Project Documentation, Section 11.1), plus a growing set of post-MVP items that
+turned out to be small enough to build well beyond that scope: ratings/reviews, in-app
+notifications, service bookings, direct messaging, product ordering, listing Q&amp;A, seller
+promo codes, and saved searches with alerts. Real payment processing remains out of scope and
+is still the empty stub package it started as - fulfilment and payment are arranged directly
+between buyer and seller on pickup, the same as bookings already worked.
 
 - Student registration + email verification (link is logged to the console — no SMTP
   provider is wired up yet) and JWT login. As a fallback to that (since there's no real inbox
@@ -141,6 +142,27 @@ comment is the closest thing to messaging here, not a real chat.
   in recipients' notification bells) to all students, all sellers, or pending business owners;
   a bookings overview tab (counts, most-booked services); the reviews moderation/overview tab
   above.
+- Direct messaging: a buyer can message a business straight from any listing; one thread per
+  (business, buyer) pair regardless of which listing started it, a header message icon with
+  unread badge and preview dropdown, and a full inbox + conversation page. New `messaging`
+  module (filled in the previously-empty stub package).
+- Product ordering: a client-side cart (product listings only - services stay on the booking
+  flow), checkout with a pickup/delivery choice and an optional promo code, and a full order
+  lifecycle (placed → confirmed → ready → completed, or cancelled with a reason) seen from a
+  buyer's "My orders" and a seller's "Orders" page; checking out decrements stock through the
+  same low-stock-notification path a manual stock edit uses. A cart spanning several sellers
+  becomes one order per business, never one order no single seller could act on. New `ordering`
+  module (filled in the previously-empty stub package).
+- Listing Q&amp;A: any signed-in student can publicly ask a question on a listing; the seller
+  answers from a "Questions awaiting your reply" panel on their dashboard; both the question and
+  answer are visible to everyone, not just the asker. New `qa` module.
+- Seller promo codes: percentage or fixed-amount discounts, scoped to a business or to one
+  listing, with an expiry and an active/off toggle; a matching listing shows the discounted
+  price and a promo badge; admin gets a redemptions/discount-given overview. New `promo` module.
+- Saved searches: save the current browse filters with one click, get notified the moment a new
+  listing matches (checked against just that one new listing when it's published, not by
+  polling), and see how many new matches are waiting next to each saved search. New
+  `savedsearch` module.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
@@ -148,6 +170,9 @@ test script below) — it isn't just "compiles", it actually runs.
 ## Not built yet (next steps)
 
 - Real email delivery for verification links.
+- Real payment processing - fulfilment and payment are arranged directly between buyer and
+  seller on pickup/delivery; the `payment` and `appointment` packages are still the empty stubs
+  they started as.
 - Deployment/hosting decision (Section 13.1 in the docs still flags this as open).
 - Automated tests beyond the one Spring context smoke test — no unit/integration tests for
   the use cases or controllers yet.

@@ -186,8 +186,12 @@ async function loadActivity() {
 const NOTIFICATION_CATEGORIES: { value: string; label: string; description: string }[] = [
   { value: "BUSINESS", label: "Business verification updates", description: "When your business is verified or rejected" },
   { value: "BOOKING", label: "Booking requests", description: "New requests, and accept/decline updates" },
+  { value: "ORDER", label: "Orders", description: "New orders, and confirm/ready/cancel updates" },
+  { value: "MESSAGE", label: "Messages", description: "New direct messages from buyers or sellers" },
+  { value: "QUESTION", label: "Listing Q&A", description: "New questions on your listings, and answers to yours" },
   { value: "STOCK", label: "Stock & price alerts", description: "When a saved listing restocks, or your stock runs low" },
   { value: "REVIEW", label: "New reviews", description: "When someone reviews your business" },
+  { value: "SAVED_SEARCH", label: "Saved search matches", description: "When a new listing matches one of your saved searches" },
   { value: "ANNOUNCEMENT", label: "Site announcements", description: "Platform updates sent to your notification bell" },
 ];
 const enabledCategories = ref<Set<string>>(new Set(NOTIFICATION_CATEGORIES.map((c) => c.value)));

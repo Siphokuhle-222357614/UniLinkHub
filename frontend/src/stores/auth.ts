@@ -3,6 +3,7 @@ import { api, getToken, setToken } from "@/lib/api";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { useNotificationsStore } from "@/stores/notifications";
+import { useMessagesStore } from "@/stores/messages";
 import type { AuthResponse, UserResponse } from "@/lib/types";
 
 export const useAuthStore = defineStore("auth", {
@@ -64,6 +65,7 @@ export const useAuthStore = defineStore("auth", {
       useSavedListingsStore().reset();
       useFollowedProvidersStore().reset();
       useNotificationsStore().reset();
+      useMessagesStore().reset();
     },
   },
 });

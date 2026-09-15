@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
+import { useMessagesStore } from "@/stores/messages";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -60,6 +61,48 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: "/messages",
+      name: "messages",
+      component: () => import("@/views/MessagesView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/messages/:id",
+      name: "conversation",
+      component: () => import("@/views/ConversationView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/checkout",
+      name: "checkout",
+      component: () => import("@/views/CheckoutView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/orders",
+      name: "my-orders",
+      component: () => import("@/views/MyOrdersView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/orders/selling",
+      name: "seller-orders",
+      component: () => import("@/views/SellerOrdersView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/promo-codes",
+      name: "promo-codes",
+      component: () => import("@/views/PromoCodesView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/saved-searches",
+      name: "saved-searches",
+      component: () => import("@/views/SavedSearchesView.vue"),
+      meta: { requiresAuth: true },
+    },
+    {
       path: "/admin",
       name: "admin-dashboard",
       component: () => import("@/views/admin/AdminDashboardView.vue"),
@@ -89,6 +132,12 @@ router.beforeEach(async (to) => {
   const followed = useFollowedProvidersStore();
   if (auth.isAuthenticated && !followed.initialized) {
     followed.fetchFollowed().catch(() => {});
+  }
+
+  const messages = useMessagesStore();
+  if (auth.isAuthenticated && !messages.initialized) {
+    messages.fetchUnreadCount();
+    messages.initialized = true;
   }
 
   return true;

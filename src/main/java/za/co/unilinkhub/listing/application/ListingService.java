@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.business.repository.BusinessRepository;
+import za.co.unilinkhub.common.exception.BadRequestException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
@@ -13,6 +14,7 @@ import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.listing.domain.Product;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 import za.co.unilinkhub.notification.application.NotificationService;
+import za.co.unilinkhub.savedsearch.application.SavedSearchService;
 import za.co.unilinkhub.stockalert.application.StockAlertService;
 
 import java.math.BigDecimal;
@@ -30,12 +32,15 @@ public class ListingService {
     private final BusinessRepository businessRepository;
     private final StockAlertService stockAlertService;
     private final NotificationService notificationService;
+    private final SavedSearchService savedSearchService;
 
     public ListingDTO createProduct(UUID requesterId, UUID businessId, String name, String description,
                                      String category, BigDecimal price, Integer stockQuantity, String imageUrl) {
         assertOwnership(businessId, requesterId);
         Product product = Product.create(businessId, name, description, category, price, stockQuantity, imageUrl);
-        return ListingDTO.from(listingRepository.save(product));
+        Listing saved = listingRepository.save(product);
+        savedSearchService.notifyMatchingSearches(saved);
+        return ListingDTO.from(saved);
     }
 
     public ListingDTO createService(UUID requesterId, UUID businessId, String name, String description,
@@ -44,7 +49,9 @@ public class ListingService {
         assertOwnership(businessId, requesterId);
         za.co.unilinkhub.listing.domain.Service service = za.co.unilinkhub.listing.domain.Service.create(
                 businessId, name, description, category, price, durationMinutes, availabilitySchedule);
-        return ListingDTO.from(listingRepository.save(service));
+        Listing saved = listingRepository.save(service);
+        savedSearchService.notifyMatchingSearches(saved);
+        return ListingDTO.from(saved);
     }
 
     public ListingDTO update(UUID requesterId, UUID listingId, String name, String description, String category,
@@ -92,6 +99,28 @@ public class ListingService {
         }
 
         return ListingDTO.from(listingRepository.save(listing));
+    }
+
+    /**
+     * Reduces a product's stock by the given quantity as part of an order being placed
+     * (see PlaceOrderUseCase), reusing the same low-stock notification trigger as a manual
+     * stock edit so a low-stock alert fires however the stock actually changed.
+     */
+    public void decrementStock(UUID listingId, int quantity) {
+        Listing listing = findListing(listingId);
+        if (!(listing instanceof Product product)) {
+            throw new BadRequestException("Only product listings can be purchased through checkout");
+        }
+        int current = product.getStockQuantity() == null ? 0 : product.getStockQuantity();
+        if (current < quantity) {
+            throw new BadRequestException("Not enough stock for \"" + product.getName() + "\"");
+        }
+        boolean wasLowStock = product.isLowStock();
+        product.updateStock(current - quantity);
+        if (!wasLowStock && product.isLowStock()) {
+            notifyLowStock(product);
+        }
+        listingRepository.save(product);
     }
 
     private void notifyLowStock(Product product) {

@@ -10,6 +10,8 @@ import type {
   AuditLogEntryDTO,
   BookingStatsDTO,
   ListingDTO,
+  OrderStatsDTO,
+  PromoStatsDTO,
   ReportSummaryView,
   ReportStatus,
   ReportStatusCounts,
@@ -18,7 +20,18 @@ import type {
   UserResponse,
 } from "@/lib/types";
 
-type Section = "overview" | "reports" | "businesses" | "accounts" | "announcements" | "activity" | "bookings" | "reviews" | "broadcast";
+type Section =
+  | "overview"
+  | "reports"
+  | "businesses"
+  | "accounts"
+  | "announcements"
+  | "activity"
+  | "bookings"
+  | "reviews"
+  | "orders"
+  | "promos"
+  | "broadcast";
 const activeSection = ref<Section>("overview");
 
 // ---- Overview ----
@@ -592,6 +605,42 @@ async function removeReview(id: string) {
   }
 }
 
+// ---- Orders ----
+const orderStats = ref<OrderStatsDTO | null>(null);
+const orderStatsLoading = ref(false);
+const orderStatsError = ref("");
+
+async function loadOrderStats() {
+  orderStatsLoading.value = true;
+  orderStatsError.value = "";
+  try {
+    const { data } = await api.get<OrderStatsDTO>("/admin/orders/stats");
+    orderStats.value = data;
+  } catch (err) {
+    orderStatsError.value = extractErrorMessage(err);
+  } finally {
+    orderStatsLoading.value = false;
+  }
+}
+
+// ---- Promo codes ----
+const promoStats = ref<PromoStatsDTO | null>(null);
+const promoStatsLoading = ref(false);
+const promoStatsError = ref("");
+
+async function loadPromoStats() {
+  promoStatsLoading.value = true;
+  promoStatsError.value = "";
+  try {
+    const { data } = await api.get<PromoStatsDTO>("/admin/promo-codes/stats");
+    promoStats.value = data;
+  } catch (err) {
+    promoStatsError.value = extractErrorMessage(err);
+  } finally {
+    promoStatsLoading.value = false;
+  }
+}
+
 // ---- Broadcast notification ----
 const broadcastAudience = ref<"ALL_STUDENTS" | "ALL_SELLERS" | "PENDING_BUSINESS_OWNERS">("ALL_STUDENTS");
 const broadcastMessage = ref("");
@@ -627,6 +676,8 @@ onMounted(async () => {
     loadActivityLog(),
     loadBookingStats(),
     loadReviewsSection(),
+    loadOrderStats(),
+    loadPromoStats(),
   ]);
 });
 </script>
@@ -701,6 +752,20 @@ onMounted(async () => {
         >
           Reviews
           <span v-if="flaggedReviews.length > 0" class="ml-1.5 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">{{ flaggedReviews.length }}</span>
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'orders' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'orders'"
+        >
+          Orders
+        </button>
+        <button
+          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          :class="activeSection === 'promos' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'promos'"
+        >
+          Promo codes
         </button>
         <button
           class="border-b-2 px-1 pb-3 text-sm font-semibold"
@@ -1458,6 +1523,103 @@ onMounted(async () => {
                   Remove
                 </button>
               </div>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- Orders section -->
+      <section v-else-if="activeSection === 'orders'" class="space-y-5">
+        <p v-if="orderStatsError" class="text-sm text-danger">{{ orderStatsError }}</p>
+        <p v-else-if="orderStatsLoading || !orderStats" class="text-sm text-medium-grey">Loading...</p>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Total orders</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ orderStats.totalOrders }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Gross order value</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">R{{ orderStats.grossValue.toFixed(2) }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Placed / awaiting seller</p>
+              <p class="font-display text-2xl font-bold text-warning">{{ orderStats.placed }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Completed</p>
+              <p class="font-display text-2xl font-bold text-success">{{ orderStats.completed }}</p>
+            </div>
+          </div>
+
+          <div class="card space-y-2.5">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">Recent orders</h3>
+            <p v-if="orderStats.recentOrders.length === 0" class="text-sm text-medium-grey">No orders yet.</p>
+            <table v-else class="w-full text-left text-sm">
+              <thead>
+                <tr class="border-b border-light-grey text-xs uppercase tracking-wide text-medium-grey">
+                  <th class="pb-2 font-medium">Buyer</th>
+                  <th class="pb-2 font-medium">Business</th>
+                  <th class="pb-2 font-medium">Total</th>
+                  <th class="pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-light-grey">
+                <tr v-for="o in orderStats.recentOrders" :key="o.id">
+                  <td class="py-2 text-charcoal">{{ o.buyerName }}</td>
+                  <td class="py-2 text-charcoal">{{ o.businessName }}</td>
+                  <td class="py-2 text-charcoal">R{{ o.total.toFixed(2) }}</td>
+                  <td class="py-2">
+                    <span
+                      class="badge"
+                      :class="{
+                        'bg-warning/15 text-warning': o.status === 'PLACED',
+                        'bg-info/15 text-info': o.status === 'CONFIRMED',
+                        'bg-slate-blue/15 text-slate-blue': o.status === 'READY',
+                        'bg-success/15 text-success': o.status === 'COMPLETED',
+                        'bg-danger/15 text-danger': o.status === 'CANCELLED',
+                      }"
+                    >
+                      {{ o.status.charAt(0) + o.status.slice(1).toLowerCase() }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </section>
+
+      <!-- Promo codes section -->
+      <section v-else-if="activeSection === 'promos'" class="space-y-5">
+        <p v-if="promoStatsError" class="text-sm text-danger">{{ promoStatsError }}</p>
+        <p v-else-if="promoStatsLoading || !promoStats" class="text-sm text-medium-grey">Loading...</p>
+
+        <template v-else>
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Active promo codes</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ promoStats.activeCount }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Total redemptions</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">{{ promoStats.totalRedemptions }}</p>
+            </div>
+            <div class="card">
+              <p class="text-xs uppercase tracking-wide text-medium-grey">Estimated discounts given</p>
+              <p class="font-display text-2xl font-bold text-uni-navy">R{{ promoStats.totalDiscountGiven.toFixed(2) }}</p>
+            </div>
+          </div>
+
+          <div class="card space-y-2.5">
+            <h3 class="font-display text-sm font-semibold text-uni-navy">Most-used promo codes</h3>
+            <p v-if="promoStats.topUsed.length === 0" class="text-sm text-medium-grey">No promo codes yet.</p>
+            <div v-for="p in promoStats.topUsed" :key="p.code + p.businessName" class="flex items-center justify-between text-sm">
+              <span class="text-charcoal">{{ p.code }} &middot; {{ p.businessName }} &middot; {{ p.discountLabel }}</span>
+              <span class="badge" :class="p.active ? 'bg-success/15 text-success' : 'bg-medium-grey/15 text-medium-grey'">
+                {{ p.usageCount }} redemption{{ p.usageCount === 1 ? "" : "s" }}
+              </span>
             </div>
           </div>
         </template>

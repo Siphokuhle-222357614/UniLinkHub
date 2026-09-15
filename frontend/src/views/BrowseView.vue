@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
 import { useAuthStore } from "@/stores/auth";
 import type { ListingDTO, ProviderProfileDTO } from "@/lib/types";
 import ListingCard from "@/components/ListingCard.vue";
 
+const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 
@@ -26,6 +27,8 @@ const mobileFiltersOpen = ref(false);
 const loading = ref(false);
 const error = ref("");
 const suggestionsOpen = ref(false);
+const savingSearch = ref(false);
+const searchSaved = ref(false);
 
 let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 
@@ -135,12 +138,49 @@ const resultsLabel = computed(() =>
   listings.value.length === 1 ? "1 listing found" : `${listings.value.length} listings found`,
 );
 
+const searchLabel = computed(() => {
+  const parts: string[] = [];
+  if (keyword.value) parts.push(`"${keyword.value}"`);
+  if (category.value) parts.push(category.value);
+  if (maxPrice.value) parts.push(`under R${maxPrice.value}`);
+  if (kind.value !== "ALL") parts.push(kind.value === "PRODUCT" ? "products" : "services");
+  return parts.length > 0 ? parts.join(" ") : "All listings";
+});
+
+const hasActiveFilters = computed(
+  () => !!(keyword.value || category.value || minPrice.value || maxPrice.value || kind.value !== "ALL" || verifiedOnly.value),
+);
+
+async function saveSearch() {
+  savingSearch.value = true;
+  try {
+    await api.post("/saved-searches", {
+      label: searchLabel.value,
+      keyword: keyword.value || null,
+      category: category.value || null,
+      maxPrice: maxPrice.value ? Number(maxPrice.value) : null,
+      listingType: kind.value === "ALL" ? null : kind.value,
+    });
+    searchSaved.value = true;
+    setTimeout(() => (searchSaved.value = false), 4000);
+  } catch (err) {
+    error.value = extractErrorMessage(err);
+  } finally {
+    savingSearch.value = false;
+  }
+}
+
 watch([keyword, category, minPrice, maxPrice, kind, verifiedOnly, sort], () => {
   clearTimeout(debounceHandle);
   debounceHandle = setTimeout(search, 250);
 });
 
 onMounted(() => {
+  if (typeof route.query.keyword === "string") keyword.value = route.query.keyword;
+  if (typeof route.query.category === "string") category.value = route.query.category;
+  if (typeof route.query.maxPrice === "string") maxPrice.value = route.query.maxPrice;
+  if (typeof route.query.type === "string") kind.value = route.query.type as typeof kind.value;
+
   loadCategoryCounts();
   loadTrending();
   loadFeaturedBusinesses();
@@ -355,9 +395,20 @@ onMounted(() => {
       </aside>
 
       <div class="space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <p class="text-sm text-medium-grey">{{ resultsLabel }}</p>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-if="auth.isAuthenticated && hasActiveFilters"
+              class="btn-secondary flex items-center gap-1.5 text-xs"
+              :disabled="savingSearch"
+              @click="saveSearch"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#163D72" stroke-width="2">
+                <path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16Z" />
+              </svg>
+              {{ savingSearch ? "Saving..." : "Save this search" }}
+            </button>
             <label class="text-xs text-medium-grey">Sort by</label>
             <select v-model="sort" class="input-field w-44">
               <option value="newest">Newest</option>
@@ -366,6 +417,11 @@ onMounted(() => {
               <option value="views">Most viewed</option>
             </select>
           </div>
+        </div>
+
+        <div v-if="searchSaved" class="flex items-center justify-between rounded-control border border-success/30 bg-success/10 px-4 py-2.5 text-sm text-success">
+          <span>Search saved! We'll notify you when new listings match "{{ searchLabel }}".</span>
+          <RouterLink to="/saved-searches" class="font-semibold underline">Manage saved searches</RouterLink>
         </div>
 
         <p v-if="error" class="text-sm text-danger">{{ error }}</p>
