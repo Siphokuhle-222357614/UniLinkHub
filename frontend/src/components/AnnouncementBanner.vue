@@ -35,9 +35,9 @@ onMounted(load);
 <template>
   <div v-if="announcement && !dismissed" class="bg-academic-gold/15 px-4 py-2.5 sm:px-6">
     <div class="mx-auto flex max-w-6xl items-center justify-between gap-3">
-      <p class="flex items-center gap-2 text-sm text-uni-navy">
-        <span>📢</span>
-        {{ announcement.message }}
+      <p class="flex min-w-0 items-center gap-2 text-sm text-uni-navy">
+        <span class="shrink-0">📢</span>
+        <span class="min-w-0">{{ announcement.message }}</span>
       </p>
       <button class="shrink-0 text-sm text-uni-navy/60 hover:text-uni-navy" aria-label="Dismiss" @click="dismiss">&times;</button>
     </div>

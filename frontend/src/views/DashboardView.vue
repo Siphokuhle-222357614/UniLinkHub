@@ -577,10 +577,14 @@ onMounted(async () => {
 
     <template v-else>
       <div class="card space-y-3">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 class="font-display text-lg font-semibold text-uni-navy">Your businesses</h2>
-          <div class="flex items-center gap-3">
-            <select v-if="businesses.length > 1" class="input-field w-40 text-xs" @change="scrollToBusiness(($event.target as HTMLSelectElement).value)">
+          <div class="flex flex-wrap items-center gap-3">
+            <select
+              v-if="businesses.length > 1"
+              class="input-field w-full text-xs sm:w-40"
+              @change="scrollToBusiness(($event.target as HTMLSelectElement).value)"
+            >
               <option value="" disabled selected>Jump to business...</option>
               <option v-for="b in businesses" :key="b.id" :value="b.id">{{ b.businessName }}</option>
             </select>

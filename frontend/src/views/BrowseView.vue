@@ -204,9 +204,12 @@ onMounted(() => {
           The marketplace built for student entrepreneurs on campus - print jobs, tutoring, food, hair &amp;
           beauty and more, all from students you actually share a res with.
         </p>
-        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <RouterLink to="/register" class="btn-primary px-6 py-2.5 text-sm">Create a free account</RouterLink>
-          <a href="#browse" class="inline-flex items-center justify-center rounded-control border border-white/40 bg-white/10 px-6 py-2.5 text-sm font-semibold text-white">
+        <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <RouterLink to="/register" class="btn-primary w-full px-6 py-2.5 text-sm sm:w-auto">Create a free account</RouterLink>
+          <a
+            href="#browse"
+            class="inline-flex w-full items-center justify-center rounded-control border border-white/40 bg-white/10 px-6 py-2.5 text-sm font-semibold text-white sm:w-auto"
+          >
             Browse the marketplace
           </a>
         </div>

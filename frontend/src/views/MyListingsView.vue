@@ -221,64 +221,100 @@ onMounted(load);
     <p v-else-if="loading" class="text-sm text-medium-grey">Loading...</p>
     <p v-else-if="filteredListings.length === 0" class="card text-sm text-medium-grey">No listings match this filter.</p>
 
-    <div v-else class="card overflow-visible p-0">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-light-grey text-left text-xs uppercase tracking-wide text-medium-grey">
-            <th class="w-10 px-4 py-3">
-              <input type="checkbox" :checked="selected.size > 0 && selected.size === filteredListings.length" @change="toggleSelectAll" />
-            </th>
-            <th class="px-2 py-3">Listing</th>
-            <th class="px-2 py-3">Business</th>
-            <th class="px-2 py-3">Price</th>
-            <th class="px-2 py-3">Status</th>
-            <th class="px-2 py-3">Views</th>
-            <th class="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="l in filteredListings"
-            :key="l.id"
-            class="relative border-b border-light-grey last:border-b-0"
-            :class="{ 'bg-campus-teal/5': selected.has(l.id) }"
-          >
-            <td class="px-4 py-3"><input type="checkbox" :checked="selected.has(l.id)" @change="toggleSelected(l.id)" /></td>
-            <td class="px-2 py-3 font-medium text-charcoal">{{ l.name }}</td>
-            <td class="px-2 py-3 text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</td>
-            <td class="px-2 py-3 font-medium text-campus-teal">{{ formatPrice(l.price) }}</td>
-            <td class="px-2 py-3"><span class="badge" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span></td>
-            <td class="px-2 py-3 text-medium-grey">{{ l.viewCount }}</td>
-            <td class="relative px-4 py-3 text-right">
-              <button class="px-1 text-medium-grey hover:text-charcoal" :disabled="duplicatingId === l.id" @click="toggleMenu(l.id)">
-                {{ duplicatingId === l.id ? "..." : "⋮" }}
-              </button>
-              <div
-                v-if="openMenuId === l.id"
-                class="absolute right-4 top-[calc(100%-4px)] z-10 w-44 rounded-card border border-light-grey bg-white py-1 text-left shadow-md"
-                @click.stop
-              >
-                <button class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey" @click="manage(); openMenuId = null">Edit</button>
-                <RouterLink
-                  :to="`/listings/${l.id}/insights`"
-                  class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
-                  @click="openMenuId = null"
-                >
-                  Insights
-                </RouterLink>
-                <button class="block w-full px-3 py-1.5 text-left text-sm font-semibold text-campus-teal hover:bg-campus-teal/10" @click="duplicateListing(l)">Duplicate</button>
-                <button
-                  v-if="l.status !== 'SOLD_OUT'"
-                  class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
-                  @click="toggleStatus(l)"
-                >
-                  {{ l.status === "ACTIVE" ? "Deactivate" : "Reactivate" }}
+    <div v-else>
+      <!-- Table (>=640px) - a dropdown menu that needs to escape the row means this can't also
+           scroll horizontally without clipping it, so mobile gets its own layout below instead
+           of a scrollable version of the same table. -->
+      <div class="hidden overflow-visible rounded-card border border-light-grey bg-white p-0 sm:block">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-light-grey text-left text-xs uppercase tracking-wide text-medium-grey">
+              <th class="w-10 px-4 py-3">
+                <input type="checkbox" :checked="selected.size > 0 && selected.size === filteredListings.length" @change="toggleSelectAll" />
+              </th>
+              <th class="px-2 py-3">Listing</th>
+              <th class="px-2 py-3">Business</th>
+              <th class="px-2 py-3">Price</th>
+              <th class="px-2 py-3">Status</th>
+              <th class="px-2 py-3">Views</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="l in filteredListings"
+              :key="l.id"
+              class="relative border-b border-light-grey last:border-b-0"
+              :class="{ 'bg-campus-teal/5': selected.has(l.id) }"
+            >
+              <td class="px-4 py-3"><input type="checkbox" :checked="selected.has(l.id)" @change="toggleSelected(l.id)" /></td>
+              <td class="px-2 py-3 font-medium text-charcoal">{{ l.name }}</td>
+              <td class="px-2 py-3 text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</td>
+              <td class="px-2 py-3 font-medium text-campus-teal">{{ formatPrice(l.price) }}</td>
+              <td class="px-2 py-3"><span class="badge" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span></td>
+              <td class="px-2 py-3 text-medium-grey">{{ l.viewCount }}</td>
+              <td class="relative px-4 py-3 text-right">
+                <button class="px-1 text-medium-grey hover:text-charcoal" :disabled="duplicatingId === l.id" @click="toggleMenu(l.id)">
+                  {{ duplicatingId === l.id ? "..." : "⋮" }}
                 </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <div
+                  v-if="openMenuId === l.id"
+                  class="absolute right-4 top-[calc(100%-4px)] z-10 w-44 rounded-card border border-light-grey bg-white py-1 text-left shadow-md"
+                  @click.stop
+                >
+                  <button class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey" @click="manage(); openMenuId = null">Edit</button>
+                  <RouterLink
+                    :to="`/listings/${l.id}/insights`"
+                    class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
+                    @click="openMenuId = null"
+                  >
+                    Insights
+                  </RouterLink>
+                  <button class="block w-full px-3 py-1.5 text-left text-sm font-semibold text-campus-teal hover:bg-campus-teal/10" @click="duplicateListing(l)">Duplicate</button>
+                  <button
+                    v-if="l.status !== 'SOLD_OUT'"
+                    class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
+                    @click="toggleStatus(l)"
+                  >
+                    {{ l.status === "ACTIVE" ? "Deactivate" : "Reactivate" }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Stacked cards (<640px) - direct action buttons instead of a dropdown, since a menu
+           positioned to escape a narrow card is more trouble than it's worth on a phone. -->
+      <div class="space-y-2 sm:hidden">
+        <div v-for="l in filteredListings" :key="l.id" class="card" :class="{ '!border-campus-teal bg-campus-teal/5': selected.has(l.id) }">
+          <div class="flex items-start justify-between gap-2">
+            <label class="flex min-w-0 items-start gap-2">
+              <input type="checkbox" class="mt-1 shrink-0" :checked="selected.has(l.id)" @change="toggleSelected(l.id)" />
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-medium text-charcoal">{{ l.name }}</span>
+                <span class="block truncate text-xs text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</span>
+              </span>
+            </label>
+            <span class="badge shrink-0" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span>
+          </div>
+          <div class="mt-2 flex items-center justify-between text-sm">
+            <span class="font-semibold text-campus-teal">{{ formatPrice(l.price) }}</span>
+            <span class="text-xs text-medium-grey">{{ l.viewCount }} views</span>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-light-grey pt-2">
+            <button class="text-xs font-medium text-campus-teal underline" @click="manage">Edit</button>
+            <RouterLink :to="`/listings/${l.id}/insights`" class="text-xs font-medium text-campus-teal underline">Insights</RouterLink>
+            <button class="text-xs font-medium text-campus-teal underline disabled:opacity-50" :disabled="duplicatingId === l.id" @click="duplicateListing(l)">
+              {{ duplicatingId === l.id ? "Duplicating..." : "Duplicate" }}
+            </button>
+            <button v-if="l.status !== 'SOLD_OUT'" class="text-xs font-medium text-charcoal underline" @click="toggleStatus(l)">
+              {{ l.status === "ACTIVE" ? "Deactivate" : "Reactivate" }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="selected.size > 0" class="fixed bottom-0 left-0 right-0 border-t border-light-grey bg-uni-navy px-4 py-3 sm:px-6">

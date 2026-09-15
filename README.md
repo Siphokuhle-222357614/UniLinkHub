@@ -198,6 +198,16 @@ between buyer and seller on pickup, the same as bookings already worked.
   user. Success toasts are wired into the highest-traffic actions across the app: auth, cart/
   checkout, messaging, listings, bookings, reviews, Q&amp;A, promo codes, saved searches, and the
   full admin console.
+- Mobile responsive down to a 320px-wide viewport. The header collapses into a hamburger menu
+  below 640px (cart/notifications stay visible, everything else moves into the slide-down panel);
+  the separate admin header does the same for its "Admin console" badge. "My listings" swaps its
+  table for a stacked card list on mobile rather than making the table horizontally scrollable,
+  because its per-row action menu is positioned to escape the row and would get clipped by a
+  scroll container - a direct list of action links avoids that instead of fighting it. Verified
+  with an automated sweep (Playwright, not just eyeballing screenshots - a plain headless-Chrome
+  screenshot tool turned out to render this app inaccurately at narrow widths) across every route,
+  every admin tab, and the booking/message modals at exactly 320px, checking each page's actual
+  `scrollWidth` against its viewport rather than trusting a screenshot.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.

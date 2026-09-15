@@ -985,7 +985,7 @@ onMounted(async () => {
 
           <div v-if="selected" class="card flex-1 space-y-5 p-6">
             <div>
-              <div class="mb-1 flex items-center gap-2.5">
+              <div class="mb-1 flex flex-wrap items-center gap-2.5">
                 <h2 class="font-display text-[19px] font-semibold text-uni-navy">
                   {{ REASON_LABELS[selected.reason] ?? selected.reason }}
                 </h2>
@@ -1103,8 +1103,8 @@ onMounted(async () => {
           <div v-else class="flex flex-col gap-3">
             <div v-for="b in filteredBusinesses" :key="b.id" class="card space-y-4 p-[18px]">
               <div class="flex flex-col items-start justify-between gap-4 sm:flex-row">
-                <div class="flex-1">
-                  <div class="mb-1.5 flex items-center gap-2.5">
+                <div class="min-w-0 flex-1">
+                  <div class="mb-1.5 flex flex-wrap items-center gap-2.5">
                     <span class="text-base font-semibold text-uni-navy">{{ b.businessName }}</span>
                     <span class="badge bg-academic-gold/20 text-uni-navy">{{ b.category }}</span>
                     <span
@@ -1225,8 +1225,8 @@ onMounted(async () => {
               :class="u.accountStatus === 'SUSPENDED' ? 'border-danger/30 bg-danger/5' : ''"
             >
               <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                <div class="flex-1">
-                  <div class="mb-1 flex items-center gap-2.5">
+                <div class="min-w-0 flex-1">
+                  <div class="mb-1 flex flex-wrap items-center gap-2.5">
                     <span class="text-base font-semibold text-uni-navy">{{ u.firstName }} {{ u.lastName }}</span>
                     <span
                       class="badge"
@@ -1623,7 +1623,8 @@ onMounted(async () => {
           <div class="card space-y-2.5">
             <h3 class="font-display text-sm font-semibold text-uni-navy">Recent orders</h3>
             <p v-if="orderStats.recentOrders.length === 0" class="text-sm text-medium-grey">No orders yet.</p>
-            <table v-else class="w-full text-left text-sm">
+            <div v-else class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
               <thead>
                 <tr class="border-b border-light-grey text-xs uppercase tracking-wide text-medium-grey">
                   <th class="pb-2 font-medium">Buyer</th>
@@ -1654,6 +1655,7 @@ onMounted(async () => {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </template>
       </section>
