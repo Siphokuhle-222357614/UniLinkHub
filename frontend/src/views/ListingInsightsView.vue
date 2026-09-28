@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { TrendingDown, TrendingUp } from "@lucide/vue";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
@@ -114,10 +115,10 @@ onMounted(load);
     <div v-if="listing.viewCount > 0" class="card">
       <p class="text-sm text-charcoal">
         <template v-if="saveRate >= businessAverageSaveRate">
-          📈 <b>{{ saveRate }}%</b> of viewers saved this listing - at or above your business average of {{ businessAverageSaveRate }}%.
+          <TrendingUp class="mr-1 inline h-4 w-4 text-success" /><b>{{ saveRate }}%</b> of viewers saved this listing - at or above your business average of {{ businessAverageSaveRate }}%.
         </template>
         <template v-else>
-          📊 <b>{{ saveRate }}%</b> of viewers saved this listing, below your business average of {{ businessAverageSaveRate }}%.
+          <TrendingDown class="mr-1 inline h-4 w-4 text-warning" /><b>{{ saveRate }}%</b> of viewers saved this listing, below your business average of {{ businessAverageSaveRate }}%.
         </template>
       </p>
     </div>

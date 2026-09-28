@@ -1,6 +1,7 @@
 package za.co.unilinkhub.ordering.repository;
 
 import za.co.unilinkhub.ordering.domain.Order;
+import za.co.unilinkhub.ordering.domain.OrderStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,4 +18,6 @@ public interface OrderRepository {
     List<Order> findByBusinessId(UUID businessId);
 
     List<Order> findAll();
+
+    long countByStatus(OrderStatus status);
 }

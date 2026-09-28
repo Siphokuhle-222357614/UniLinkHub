@@ -2,8 +2,8 @@
 .idea
 .vscode
 design/
-target/
+backend/target/
 frontend/node_modules/
 frontend/dist/
-src/main/resources/static/
+backend/src/main/resources/static/
 *.md

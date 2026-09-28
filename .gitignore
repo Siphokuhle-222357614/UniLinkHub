@@ -5,12 +5,18 @@ target/
 
 ### The production Docker build copies the frontend's built assets here so Spring Boot serves
 ### them - this is a build output, never source, and should never be committed. ###
-src/main/resources/static/
+backend/src/main/resources/static/
 
 ### Design mockups (working files for the Claude Design canvas - the published
 ### Artifact link is the thing to share; the seeded .html payload here is large
 ### and not app source) ###
 design/
+
+### Environment variable files - these hold real secrets (DB passwords, JWT signing key)
+### once filled in for an actual deployment, so they must never be committed. ###
+.env
+.env.*
+*.env
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

@@ -15,16 +15,16 @@ RUN npm run build
 
 # ---- Stage 2: build the backend, with the frontend's build folded in as static resources ----
 FROM maven:3.9-eclipse-temurin-21 AS backend-build
-WORKDIR /app
-COPY pom.xml ./
+WORKDIR /app/backend
+COPY backend/pom.xml ./
 RUN mvn -B dependency:go-offline
-COPY src ./src
+COPY backend/src ./src
 COPY --from=frontend-build /app/frontend/dist ./src/main/resources/static
 RUN mvn -B clean package -DskipTests
 
 # ---- Stage 3: slim runtime image ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=backend-build /app/target/unilinkhub.jar ./app.jar
+COPY --from=backend-build /app/backend/target/unilinkhub.jar ./app.jar
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

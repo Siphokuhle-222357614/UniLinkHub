@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Component } from "vue";
+import { BadgeCheck, Bell, CircleQuestionMark, Flag, Megaphone, Star, UserX } from "@lucide/vue";
 import { computed, onMounted, ref } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
@@ -530,13 +532,13 @@ const activityFilters: { value: typeof activityFilter.value; label: string }[] =
   { value: "ANNOUNCEMENT", label: "Announcements" },
 ];
 
-const CATEGORY_ICONS: Record<string, string> = {
-  BUSINESS: "✓",
-  ACCOUNT: "⏸",
-  REPORT: "🚩",
-  REVIEW: "⭐",
-  QUESTION: "❓",
-  ANNOUNCEMENT: "📢",
+const CATEGORY_ICONS: Record<string, Component> = {
+  BUSINESS: BadgeCheck,
+  ACCOUNT: UserX,
+  REPORT: Flag,
+  REVIEW: Star,
+  QUESTION: CircleQuestionMark,
+  ANNOUNCEMENT: Megaphone,
 };
 
 function activityRelativeTime(iso: string): string {
@@ -744,22 +746,22 @@ onMounted(async () => {
   <div class="min-h-screen bg-soft-grey">
     <AdminNav />
 
-    <main class="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:px-6">
+    <main class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
       <div>
-        <h1 class="font-display text-2xl font-bold text-uni-navy sm:text-[26px]">Admin dashboard</h1>
+        <h1 class="page-title">Admin dashboard</h1>
         <p class="text-sm text-medium-grey">Trust &amp; safety and business verification, in one place.</p>
       </div>
 
-      <div class="flex gap-2 overflow-x-auto border-b border-light-grey">
+      <div class="-mx-4 flex gap-6 overflow-x-auto border-b border-light-grey px-4 sm:mx-0 sm:px-0">
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'overview' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'overview'"
         >
           Overview
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'reports' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'reports'"
         >
@@ -767,7 +769,7 @@ onMounted(async () => {
           <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ countFor('ALL') }}</span>
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'businesses' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'businesses'"
         >
@@ -775,7 +777,7 @@ onMounted(async () => {
           <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ businessCountFor('PENDING') }}</span>
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'accounts' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'accounts'"
         >
@@ -783,28 +785,28 @@ onMounted(async () => {
           <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ accountCountFor('PENDING_VERIFICATION') }}</span>
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'announcements' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'announcements'"
         >
           Announcements
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'activity' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'activity'"
         >
           Activity log
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'bookings' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'bookings'"
         >
           Bookings
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'reviews' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'reviews'"
         >
@@ -812,21 +814,21 @@ onMounted(async () => {
           <span v-if="flaggedReviews.length > 0" class="ml-1.5 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">{{ flaggedReviews.length }}</span>
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'orders' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'orders'"
         >
           Orders
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'promos' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'promos'"
         >
           Promo codes
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'questions' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'questions'"
         >
@@ -834,7 +836,7 @@ onMounted(async () => {
           <span v-if="flaggedQuestions.length > 0" class="ml-1.5 rounded-full bg-danger/15 px-2 py-0.5 text-xs text-danger">{{ flaggedQuestions.length }}</span>
         </button>
         <button
-          class="border-b-2 px-1 pb-3 text-sm font-semibold"
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
           :class="activeSection === 'broadcast' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'broadcast'"
         >
@@ -1123,7 +1125,7 @@ onMounted(async () => {
                     Owner: {{ b.ownerFullName }} &middot; #{{ b.ownerStudentNumber }} &middot;
                     {{ b.verificationStatus === "PENDING" ? "Submitted" : "Updated" }} {{ relativeDays(b.updatedAt) }}
                     &middot;
-                    <button class="font-medium text-campus-teal underline" @click="toggleBusinessExpand(b.id)">
+                    <button class="font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="toggleBusinessExpand(b.id)">
                       {{ expandedBusinessId === b.id ? "Hide listings" : "View listings" }}
                     </button>
                   </p>
@@ -1248,7 +1250,7 @@ onMounted(async () => {
                   <p class="text-[13px] text-medium-grey">
                     {{ u.email }} &middot; #{{ u.studentNumber }} &middot; {{ accountAge(u.createdAt) }}
                     &middot;
-                    <button class="font-medium text-campus-teal underline" @click="toggleAccountExpand(u.id)">
+                    <button class="font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="toggleAccountExpand(u.id)">
                       {{ expandedAccountId === u.id ? "Hide details" : "View details" }}
                     </button>
                   </p>
@@ -1476,7 +1478,7 @@ onMounted(async () => {
                 'bg-info/15 text-info': entry.category === 'ANNOUNCEMENT',
               }"
             >
-              {{ CATEGORY_ICONS[entry.category] }}
+              <component :is="CATEGORY_ICONS[entry.category] ?? Bell" class="h-4 w-4" />
             </span>
             <div class="flex-1">
               <p class="text-sm text-charcoal">{{ entry.description }}</p>

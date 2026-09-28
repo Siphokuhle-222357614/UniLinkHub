@@ -304,9 +304,9 @@ onMounted(load);
             <span class="text-xs text-medium-grey">{{ l.viewCount }} views</span>
           </div>
           <div class="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-light-grey pt-2">
-            <button class="text-xs font-medium text-campus-teal underline" @click="manage">Edit</button>
-            <RouterLink :to="`/listings/${l.id}/insights`" class="text-xs font-medium text-campus-teal underline">Insights</RouterLink>
-            <button class="text-xs font-medium text-campus-teal underline disabled:opacity-50" :disabled="duplicatingId === l.id" @click="duplicateListing(l)">
+            <button class="text-xs font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="manage">Edit</button>
+            <RouterLink :to="`/listings/${l.id}/insights`" class="text-xs font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600">Insights</RouterLink>
+            <button class="text-xs font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600 disabled:opacity-50" :disabled="duplicatingId === l.id" @click="duplicateListing(l)">
               {{ duplicatingId === l.id ? "Duplicating..." : "Duplicate" }}
             </button>
             <button v-if="l.status !== 'SOLD_OUT'" class="text-xs font-medium text-charcoal underline" @click="toggleStatus(l)">
@@ -317,7 +317,7 @@ onMounted(load);
       </div>
     </div>
 
-    <div v-if="selected.size > 0" class="fixed bottom-0 left-0 right-0 border-t border-light-grey bg-uni-navy px-4 py-3 sm:px-6">
+    <div v-if="selected.size > 0" class="fixed inset-x-3 bottom-20 z-30 mx-auto max-w-3xl rounded-2xl bg-navy-900 px-4 py-3 shadow-pop sm:px-6 md:bottom-6">
       <div class="mx-auto flex max-w-4xl items-center justify-between">
         <p class="text-sm font-semibold text-white">{{ selected.size }} listing{{ selected.size === 1 ? "" : "s" }} selected</p>
         <div class="flex items-center gap-2">

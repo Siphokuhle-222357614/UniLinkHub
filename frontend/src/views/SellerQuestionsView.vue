@@ -136,7 +136,7 @@ onMounted(load);
             <div class="flex flex-wrap items-center justify-between gap-1">
               <p class="text-xs text-medium-grey">
                 <span class="font-medium text-charcoal">{{ q.askerName }}</span> asked on
-                <RouterLink :to="`/listings/${q.listingId}`" class="font-medium text-campus-teal underline">{{ q.listingName }}</RouterLink>
+                <RouterLink :to="`/listings/${q.listingId}`" class="font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600">{{ q.listingName }}</RouterLink>
                 &middot; {{ relativeTime(q.createdAt) }}
               </p>
               <span v-if="!q.answerText" class="badge bg-warning/15 text-warning shrink-0">Pending</span>
@@ -149,7 +149,7 @@ onMounted(load);
                 <p class="text-xs font-semibold text-uni-navy">Your answer &middot; {{ relativeTime(q.answeredAt!) }}</p>
                 <p class="mt-0.5 text-sm text-charcoal">{{ q.answerText }}</p>
               </div>
-              <button class="shrink-0 text-xs font-medium text-campus-teal underline" @click="startEdit(q)">Edit</button>
+              <button class="shrink-0 text-xs font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="startEdit(q)">Edit</button>
             </div>
 
             <div v-if="!q.answerText || editingId === q.id" class="mt-2 flex gap-2">

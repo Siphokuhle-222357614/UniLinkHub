@@ -1,15 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useRouter } from "vue-router";
+import { ArrowLeft, LogOut, ShieldCheck } from "@lucide/vue";
 import { useAuthStore } from "@/stores/auth";
+import LogoMark from "@/components/LogoMark.vue";
 
 const router = useRouter();
 const auth = useAuthStore();
 
-const initials = () => {
+const initials = computed(() => {
   const first = auth.user?.firstName?.[0] ?? "";
   const last = auth.user?.lastName?.[0] ?? "";
   return (first + last).toUpperCase() || "A";
-};
+});
 
 function handleLogout() {
   auth.logout();
@@ -18,32 +21,32 @@ function handleLogout() {
 </script>
 
 <template>
-  <header class="border-b border-light-grey bg-white">
-    <div class="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
-      <div class="flex min-w-0 items-baseline gap-2.5">
-        <RouterLink to="/" class="shrink-0 truncate font-display text-lg font-bold text-uni-navy sm:text-xl">UniLinkHub</RouterLink>
-        <span class="hidden shrink-0 rounded-full border border-academic-gold bg-academic-gold/15 px-2 py-0.5 text-[11px] font-semibold text-uni-navy sm:inline">
-          Admin console
+  <header class="sticky top-0 z-30 border-b border-light-grey/70 bg-white/80 backdrop-blur-xl">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+      <div class="flex min-w-0 items-center gap-3">
+        <RouterLink to="/" class="flex shrink-0 items-center gap-2" aria-label="UniLinkHub home">
+          <LogoMark :size="30" />
+          <span class="hidden font-display text-lg font-bold text-uni-navy sm:inline">Uni<span class="text-teal-500">Link</span>Hub</span>
+        </RouterLink>
+        <span class="badge shrink-0 border border-gold-200 bg-gold-50 py-1 text-gold-700">
+          <ShieldCheck class="h-3.5 w-3.5" /> Admin console
         </span>
       </div>
 
-      <nav class="flex shrink-0 items-center gap-2 sm:gap-4">
-        <div class="flex items-center gap-2">
-          <div class="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-uni-navy font-display text-xs font-bold text-white">
-            {{ initials() }}
-          </div>
-          <span class="hidden text-sm font-medium text-charcoal sm:inline">{{ auth.user?.firstName }} {{ auth.user?.lastName }}</span>
+      <nav class="flex shrink-0 items-center gap-1 sm:gap-2">
+        <RouterLink to="/" class="btn-ghost px-3 text-xs">
+          <ArrowLeft class="h-4 w-4" /> <span class="hidden sm:inline">Marketplace</span>
+        </RouterLink>
+        <div class="flex items-center gap-2 pl-1">
+          <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-uni-navy to-teal-500 font-display text-xs font-bold text-white">
+            {{ initials }}
+          </span>
+          <span class="hidden text-sm font-medium text-charcoal lg:inline">{{ auth.user?.firstName }} {{ auth.user?.lastName }}</span>
         </div>
-
-        <button class="btn-secondary text-sm" @click="handleLogout">Log out</button>
+        <button class="btn-icon h-9 w-9 hover:text-danger" aria-label="Log out" title="Log out" @click="handleLogout">
+          <LogOut class="h-4 w-4" />
+        </button>
       </nav>
-    </div>
-
-    <!-- The "Admin console" badge moves to its own row on mobile rather than squeezing the main row -->
-    <div class="border-t border-light-grey px-4 py-1.5 sm:hidden">
-      <span class="rounded-full border border-academic-gold bg-academic-gold/15 px-2 py-0.5 text-[11px] font-semibold text-uni-navy">
-        Admin console
-      </span>
     </div>
   </header>
 </template>

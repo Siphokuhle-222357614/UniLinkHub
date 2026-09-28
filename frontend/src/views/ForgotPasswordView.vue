@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { CircleAlert, CircleCheck, Info } from "@lucide/vue";
 import { api, extractErrorMessage } from "@/lib/api";
+import AuthLayout from "@/components/AuthLayout.vue";
+import PasswordInput from "@/components/ui/PasswordInput.vue";
 
 const router = useRouter();
+
+// Two steps on one screen: request a code, then redeem it. Step 2 is reachable directly too,
+// for someone who already has a code from an earlier request.
+const step = ref<1 | 2>(1);
 
 const email = ref("");
 const requesting = ref(false);
@@ -17,6 +24,7 @@ async function requestReset() {
   try {
     await api.post("/auth/forgot-password", { email: email.value });
     requestStatus.value = "If that email is registered, a reset code has been sent.";
+    step.value = 2;
   } catch (err) {
     requestError.value = extractErrorMessage(err);
   } finally {
@@ -41,7 +49,7 @@ async function resetPassword() {
   resetting.value = true;
   try {
     await api.post("/auth/reset-password", { token: token.value, newPassword: newPassword.value });
-    resetStatus.value = "Password reset. Redirecting to login...";
+    resetStatus.value = "Password reset. Redirecting to login…";
     setTimeout(() => router.push({ name: "login" }), 1500);
   } catch (err) {
     resetError.value = extractErrorMessage(err);
@@ -52,46 +60,68 @@ async function resetPassword() {
 </script>
 
 <template>
-  <section class="mx-auto max-w-3xl">
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-      <div class="card space-y-4">
-        <div>
-          <h1 class="font-display text-xl font-bold text-uni-navy">Forgot your password?</h1>
-          <p class="mt-1 text-sm text-medium-grey">Enter your student email and we'll send you a reset code.</p>
-        </div>
-        <form class="space-y-3" @submit.prevent="requestReset">
-          <input v-model="email" type="email" required placeholder="Student email" class="input-field" />
-          <button type="submit" class="btn-primary w-full" :disabled="requesting">
-            {{ requesting ? "Sending..." : "Send reset code" }}
-          </button>
-        </form>
-        <p v-if="requestError" class="text-sm text-danger">{{ requestError }}</p>
-        <p v-else-if="requestStatus" class="text-sm text-success">{{ requestStatus }}</p>
-        <p class="text-xs text-medium-grey">
-          Remembered it after all? <RouterLink to="/login" class="font-medium text-campus-teal underline">Back to log in</RouterLink>
-        </p>
-      </div>
-
-      <div class="card space-y-4">
-        <div>
-          <h1 class="font-display text-xl font-bold text-uni-navy">Reset your password</h1>
-          <p class="mt-1 text-sm text-medium-grey">Paste the reset code from your email, then choose a new password.</p>
-        </div>
-        <form class="space-y-3" @submit.prevent="resetPassword">
-          <input v-model="token" required placeholder="Reset code" class="input-field font-mono text-xs" />
-          <input v-model="newPassword" type="password" required placeholder="New password" class="input-field" />
-          <input v-model="confirmPassword" type="password" required placeholder="Confirm new password" class="input-field" />
-          <button type="submit" class="btn-primary w-full" :disabled="resetting">
-            {{ resetting ? "Resetting..." : "Reset password" }}
-          </button>
-        </form>
-        <p v-if="resetError" class="text-sm text-danger">{{ resetError }}</p>
-        <p v-else-if="resetStatus" class="text-sm text-success">{{ resetStatus }}</p>
-        <p class="rounded-control bg-soft-grey p-2.5 text-xs text-medium-grey">
-          No SMTP provider is wired up yet in dev - the reset code is logged to the backend
-          console the same way the verification link is.
-        </p>
-      </div>
+  <AuthLayout
+    :title="step === 1 ? 'Forgot your password?' : 'Choose a new password'"
+    :subtitle="step === 1 ? 'Enter your student email and we\'ll send you a reset code.' : 'Paste the reset code you received, then pick a new password.'"
+  >
+    <div class="mb-6 grid grid-cols-2 gap-1 rounded-control bg-soft-grey p-1">
+      <button
+        v-for="n in [1, 2] as const"
+        :key="n"
+        class="rounded-lg py-2 text-xs font-semibold transition"
+        :class="step === n ? 'bg-white text-uni-navy shadow-card' : 'text-medium-grey hover:text-uni-navy'"
+        @click="step = n"
+      >
+        {{ n }}. {{ n === 1 ? "Request code" : "Reset password" }}
+      </button>
     </div>
-  </section>
+
+    <form v-if="step === 1" class="space-y-4" @submit.prevent="requestReset">
+      <div>
+        <label for="fp-email" class="field-label">Student email</label>
+        <input id="fp-email" v-model="email" type="email" required autocomplete="email" placeholder="you@mycput.ac.za" class="input-field" />
+      </div>
+      <p v-if="requestError" class="flex items-start gap-2 rounded-control border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-danger">
+        <CircleAlert class="mt-0.5 h-4 w-4 shrink-0" /> {{ requestError }}
+      </p>
+      <button type="submit" class="btn-primary w-full py-3" :disabled="requesting">
+        {{ requesting ? "Sending…" : "Send reset code" }}
+      </button>
+    </form>
+
+    <form v-else class="space-y-4" @submit.prevent="resetPassword">
+      <p v-if="requestStatus" class="flex items-start gap-2 rounded-control border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800">
+        <CircleCheck class="mt-0.5 h-4 w-4 shrink-0" /> {{ requestStatus }}
+      </p>
+      <div>
+        <label for="fp-token" class="field-label">Reset code</label>
+        <input id="fp-token" v-model="token" required placeholder="Paste your code" class="input-field font-mono text-xs" />
+      </div>
+      <div>
+        <label for="fp-new" class="field-label">New password</label>
+        <PasswordInput id="fp-new" v-model="newPassword" autocomplete="new-password" />
+      </div>
+      <div>
+        <label for="fp-confirm" class="field-label">Confirm new password</label>
+        <PasswordInput id="fp-confirm" v-model="confirmPassword" autocomplete="new-password" />
+      </div>
+      <p v-if="resetError" class="flex items-start gap-2 rounded-control border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-danger">
+        <CircleAlert class="mt-0.5 h-4 w-4 shrink-0" /> {{ resetError }}
+      </p>
+      <p v-else-if="resetStatus" class="flex items-start gap-2 rounded-control border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800">
+        <CircleCheck class="mt-0.5 h-4 w-4 shrink-0" /> {{ resetStatus }}
+      </p>
+      <button type="submit" class="btn-primary w-full py-3" :disabled="resetting">
+        {{ resetting ? "Resetting…" : "Reset password" }}
+      </button>
+      <p class="flex gap-2 rounded-control bg-soft-grey p-3 text-xs text-medium-grey">
+        <Info class="h-4 w-4 shrink-0" />
+        No SMTP provider is wired up yet in dev - the reset code is logged to the backend console the same way the verification link is.
+      </p>
+    </form>
+
+    <p class="mt-8 text-center text-sm text-medium-grey">
+      Remembered it after all? <RouterLink to="/login" class="link">Back to log in</RouterLink>
+    </p>
+  </AuthLayout>
 </template>

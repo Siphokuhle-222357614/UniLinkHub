@@ -163,6 +163,22 @@ class MarketplaceSmokeTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CONFIRMED"));
 
+        // ---- Seller analytics: the confirmed order counts towards revenue at its discounted total ----
+        mockMvc.perform(get("/api/orders/seller/analytics").param("days", "30").header("Authorization", "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.days").value(30))
+                .andExpect(jsonPath("$.orders").value(1))
+                .andExpect(jsonPath("$.revenue").value(180.0))
+                .andExpect(jsonPath("$.averageOrderValue").value(180.0))
+                .andExpect(jsonPath("$.uniqueBuyers").value(1))
+                .andExpect(jsonPath("$.daily.length()").value(30))
+                .andExpect(jsonPath("$.topListings[0].name").value("Smoke Test Poster"))
+                .andExpect(jsonPath("$.topListings[0].unitsSold").value(2));
+
+        // A buyer can't read analytics for a business they don't own.
+        mockMvc.perform(get("/api/orders/seller/analytics").param("businessId", businessId).header("Authorization", "Bearer " + buyerToken))
+                .andExpect(status().is4xxClientError());
+
         // ---- Listing Q&A ----
         String questionJson = mockMvc.perform(post("/api/listings/" + listingId + "/questions")
                         .header("Authorization", "Bearer " + buyerToken)
@@ -245,5 +261,15 @@ class MarketplaceSmokeTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$[?(@=='Printing')]").exists());
+    }
+
+    @Test
+    void publicStatsAreAvailableWithoutLoggingIn() throws Exception {
+        mockMvc.perform(get("/api/stats/public"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.students").isNumber())
+                .andExpect(jsonPath("$.verifiedBusinesses").isNumber())
+                .andExpect(jsonPath("$.activeListings").isNumber())
+                .andExpect(jsonPath("$.completedOrders").isNumber());
     }
 }

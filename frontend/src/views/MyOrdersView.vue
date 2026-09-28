@@ -80,7 +80,7 @@ onMounted(load);
         </p>
         <div class="mt-3 flex items-center justify-between border-t border-light-grey pt-3">
           <p class="text-sm font-bold text-charcoal">{{ formatPrice(o.total) }}</p>
-          <RouterLink to="/messages" class="text-xs font-medium text-campus-teal underline">Message seller</RouterLink>
+          <RouterLink to="/messages" class="text-xs font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600">Message seller</RouterLink>
         </div>
       </div>
     </div>

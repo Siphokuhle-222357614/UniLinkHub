@@ -6,14 +6,21 @@ import { useMessagesStore } from "@/stores/messages";
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, saved) {
+    if (saved) return saved;
+    if (to.hash) return { el: to.hash, behavior: "smooth" };
+    // Filter changes on the same page (e.g. /?category=Food) shouldn't jump back to the top.
+    if (to.path === from.path) return false;
+    return { top: 0 };
+  },
   routes: [
     { path: "/", name: "browse", component: () => import("@/views/BrowseView.vue") },
     { path: "/listings/:id", name: "listing-detail", component: () => import("@/views/ListingDetailView.vue") },
     { path: "/providers", name: "provider-directory", component: () => import("@/views/ProviderDirectoryView.vue") },
     { path: "/providers/:businessId", name: "provider-profile", component: () => import("@/views/ProviderProfileView.vue") },
-    { path: "/login", name: "login", component: () => import("@/views/LoginView.vue") },
-    { path: "/register", name: "register", component: () => import("@/views/RegisterView.vue") },
-    { path: "/forgot-password", name: "forgot-password", component: () => import("@/views/ForgotPasswordView.vue") },
+    { path: "/login", name: "login", component: () => import("@/views/LoginView.vue"), meta: { layout: "bare" } },
+    { path: "/register", name: "register", component: () => import("@/views/RegisterView.vue"), meta: { layout: "bare" } },
+    { path: "/forgot-password", name: "forgot-password", component: () => import("@/views/ForgotPasswordView.vue"), meta: { layout: "bare" } },
     {
       path: "/dashboard",
       name: "dashboard",
@@ -112,9 +119,9 @@ const router = createRouter({
       path: "/admin",
       name: "admin-dashboard",
       component: () => import("@/views/admin/AdminDashboardView.vue"),
-      meta: { requiresAuth: true, requiresAdmin: true },
+      meta: { requiresAuth: true, requiresAdmin: true, layout: "bare" },
     },
-    { path: "/:pathMatch(.*)*", name: "not-found", component: () => import("@/views/NotFoundView.vue") },
+   // { path: "/:pathMatch(.*)*", name: "not-found", component: () => import("@/views/NotFoundView.vue") },
   ],
 });
 

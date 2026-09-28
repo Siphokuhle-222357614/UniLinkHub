@@ -364,3 +364,17 @@ export interface SavedSearchDTO {
   newMatchesCount: number;
   createdAt: string;
 }
+
+export interface SellerAnalyticsDTO {
+  days: number;
+  revenue: number;
+  previousRevenue: number;
+  orders: number;
+  previousOrders: number;
+  averageOrderValue: number;
+  uniqueBuyers: number;
+  repeatBuyers: number;
+  cancelledOrders: number;
+  daily: { date: string; revenue: number; orders: number }[];
+  topListings: { listingId: string; name: string; unitsSold: number; revenue: number }[];
+}

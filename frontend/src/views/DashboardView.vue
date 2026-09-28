@@ -7,7 +7,31 @@ import { useToastStore } from "@/stores/toast";
 import { getRecentlyViewed } from "@/lib/recentlyViewed";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Bookmark,
+  CalendarDays,
+  Check,
+  CircleQuestionMark,
+  Flag,
+  Heart,
+  History,
+  MessageCircle,
+  Package,
+  Pencil,
+  Plus,
+  Receipt,
+  Sparkles,
+  Store,
+  TicketPercent,
+  Users,
+} from "@lucide/vue";
 import ListingCard from "@/components/ListingCard.vue";
+import SalesAnalytics from "@/components/SalesAnalytics.vue";
+import EmptyState from "@/components/ui/EmptyState.vue";
+import { useMessagesStore } from "@/stores/messages";
+import { categoryMeta } from "@/lib/categoryMeta";
 import type { BookingSummaryView, BusinessDTO, BusinessStatsDTO, ListingDTO, QuestionView, ReportStatus, ReportSummaryView } from "@/lib/types";
 
 const auth = useAuthStore();
@@ -15,6 +39,28 @@ const saved = useSavedListingsStore();
 const followed = useFollowedProvidersStore();
 const toast = useToastStore();
 const categories = useCategories();
+const messagesStore = useMessagesStore();
+
+const tab = ref<"buying" | "selling">(auth.isSeller ? "selling" : "buying");
+
+const buyerActions = [
+  { to: "/orders", label: "My orders", icon: Receipt, tone: "bg-sky-50 text-sky-600" },
+  { to: "/bookings", label: "Bookings", icon: CalendarDays, tone: "bg-violet-50 text-violet-600" },
+  { to: "/messages", label: "Messages", icon: MessageCircle, tone: "bg-teal-50 text-teal-600" },
+  { to: "/saved-searches", label: "Saved searches", icon: Bookmark, tone: "bg-gold-50 text-gold-700" },
+];
+const sellerActions = [
+  { to: "/orders/selling", label: "Orders to fulfil", icon: Package, tone: "bg-orange-50 text-orange-600" },
+  { to: "/my-listings", label: "My listings", icon: Store, tone: "bg-navy-50 text-navy-600" },
+  { to: "/questions", label: "Listing Q&A", icon: CircleQuestionMark, tone: "bg-pink-50 text-pink-600" },
+  { to: "/promo-codes", label: "Promo codes", icon: TicketPercent, tone: "bg-emerald-50 text-emerald-600" },
+];
+
+const VERIFICATION_STYLES: Record<string, string> = {
+  VERIFIED: "bg-emerald-50 text-emerald-700",
+  PENDING: "bg-amber-50 text-warning",
+  REJECTED: "bg-red-50 text-danger",
+};
 
 const businesses = ref<BusinessDTO[]>([]);
 const listingsByBusiness = ref<Record<string, ListingDTO[]>>({});
@@ -113,10 +159,10 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<ReportStatus, string> = {
-  OPEN: "bg-warning/15 text-warning",
-  UNDER_REVIEW: "bg-info/15 text-info",
-  RESOLVED: "bg-success/15 text-success",
-  DISMISSED: "bg-medium-grey/15 text-medium-grey",
+  OPEN: "bg-amber-50 text-warning",
+  UNDER_REVIEW: "bg-blue-50 text-info",
+  RESOLVED: "bg-emerald-50 text-emerald-700",
+  DISMISSED: "bg-slate-100 text-medium-grey",
 };
 
 const STATUS_LABELS: Record<ReportStatus, string> = {
@@ -162,8 +208,8 @@ function scrollToBusiness(businessId: string) {
   const el = document.getElementById(`business-${businessId}`);
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
-    el.classList.add("ring-2", "ring-campus-teal");
-    setTimeout(() => el.classList.remove("ring-2", "ring-campus-teal"), 1500);
+    el.classList.add("ring-2", "ring-teal-500");
+    setTimeout(() => el.classList.remove("ring-2", "ring-teal-500"), 1500);
   }
 }
 
@@ -176,9 +222,9 @@ const bookingActing = ref<string | null>(null);
 const pendingBookings = computed(() => sellerBookings.value.filter((b) => b.status === "PENDING"));
 
 const BOOKING_STATUS_STYLES: Record<string, string> = {
-  PENDING: "bg-warning/15 text-warning",
-  ACCEPTED: "bg-success/15 text-success",
-  DECLINED: "bg-danger/15 text-danger",
+  PENDING: "bg-amber-50 text-warning",
+  ACCEPTED: "bg-emerald-50 text-emerald-700",
+  DECLINED: "bg-red-50 text-danger",
 };
 
 function formatDateTime(iso: string): string {
@@ -280,6 +326,7 @@ async function becomeSeller() {
   becomingSeller.value = true;
   try {
     await auth.becomeSeller();
+    tab.value = "selling";
     await loadBusinesses();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -428,508 +475,449 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="space-y-6">
-    <div class="card">
-      <h1 class="font-display text-xl font-bold text-uni-navy">
-        Welcome, {{ auth.user?.firstName }}
-      </h1>
-      <p class="text-sm text-medium-grey">{{ auth.user?.email }} · {{ auth.user?.studentNumber }}</p>
-      <div class="mt-3 flex flex-wrap gap-2 border-t border-light-grey pt-3">
-        <RouterLink to="/orders" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">My orders</RouterLink>
-        <RouterLink to="/saved-searches" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Saved searches</RouterLink>
-        <RouterLink to="/messages" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Messages</RouterLink>
-        <template v-if="auth.isSeller">
-          <RouterLink to="/orders/selling" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Selling: orders</RouterLink>
-          <RouterLink to="/promo-codes" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Promo codes</RouterLink>
-          <RouterLink to="/questions" class="badge bg-soft-grey text-charcoal hover:bg-light-grey">Listing Q&amp;A</RouterLink>
-        </template>
-      </div>
-    </div>
-
-    <p v-if="error" class="text-sm text-danger">{{ error }}</p>
-
-    <!-- Saved listings -->
-    <div>
-      <div class="mb-3 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <h2 class="font-display text-lg font-semibold text-uni-navy">Saved listings</h2>
-          <span v-if="saved.listings.length > 0" class="text-xs text-medium-grey">{{ saved.listings.length }} saved</span>
-        </div>
-        <button
-          v-if="saved.listings.length > 0"
-          class="text-xs font-medium text-campus-teal"
-          @click="savedSelectMode = !savedSelectMode; savedSelected.clear()"
-        >
-          {{ savedSelectMode ? "Cancel" : "Select" }}
-        </button>
-      </div>
-      <div v-if="saved.listings.length === 0" class="card text-sm text-medium-grey">
-        Tap the heart on any listing to save it here for later.
-      </div>
-      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div v-for="listing in saved.listings" :key="listing.id" class="relative">
-          <input
-            v-if="savedSelectMode"
-            type="checkbox"
-            class="absolute right-2.5 top-2.5 z-10 h-4 w-4 accent-campus-teal"
-            :checked="savedSelected.has(listing.id)"
-            @change="toggleSavedSelected(listing.id)"
-            @click.stop
-          />
-          <ListingCard :listing="listing" :class="{ '!border-campus-teal bg-campus-teal/5': savedSelected.has(listing.id) }" />
-        </div>
-      </div>
-      <div v-if="savedSelectMode && savedSelected.size > 0" class="mt-3 flex items-center justify-between rounded-control bg-uni-navy px-4 py-3">
-        <p class="text-sm font-semibold text-white">{{ savedSelected.size }} selected</p>
-        <button class="inline-flex items-center gap-1.5 rounded-control bg-white/10 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50" :disabled="bulkUnsaving" @click="bulkUnsave">
-          {{ bulkUnsaving ? "Removing..." : "Remove from saved" }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Recommended for you -->
-    <div v-if="recommended.length > 0">
-      <div class="mb-1 flex items-center gap-2">
-        <span class="text-lg">✨</span>
-        <h2 class="font-display text-lg font-semibold text-uni-navy">Recommended for you</h2>
-      </div>
-      <p class="mb-3 text-xs text-medium-grey">Based on categories you've saved and followed: {{ favoriteCategories.join(", ") }}</p>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ListingCard v-for="listing in recommended" :key="listing.id" :listing="listing" />
-      </div>
-    </div>
-
-    <!-- Providers you follow -->
-    <div>
-      <div class="mb-3 flex items-center gap-2">
-        <h2 class="font-display text-lg font-semibold text-uni-navy">Providers you follow</h2>
-        <span v-if="followed.providers.length > 0" class="text-xs text-medium-grey">{{ followed.providers.length }} followed</span>
-      </div>
-      <div v-if="followed.providers.length === 0" class="card text-sm text-medium-grey">
-        Follow a provider from their profile to see new listings from them here.
-      </div>
-      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <RouterLink
-          v-for="p in followed.providers"
-          :key="p.businessId"
-          :to="`/providers/${p.businessId}`"
-          class="card space-y-2 transition hover:shadow-md"
-        >
-          <div class="flex items-center justify-between">
-            <h3 class="font-display text-sm font-semibold text-uni-navy">{{ p.businessName }}</h3>
-            <span
-              class="badge"
-              :class="p.verificationStatus === 'VERIFIED' ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'"
-            >
-              {{ p.verificationStatus === "VERIFIED" ? "Verified" : "Pending" }}
-            </span>
+  <section class="space-y-8">
+    <!-- Welcome header -->
+    <div class="relative -mx-4 -mt-6 overflow-hidden bg-hero px-5 py-8 text-white sm:mx-0 sm:mt-0 sm:rounded-[24px] sm:px-8">
+      <div class="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]"></div>
+      <div class="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-4">
+          <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-blue to-teal-500 font-display text-lg font-bold text-navy-950 shadow-lift">
+            {{ (auth.user?.firstName?.[0] ?? "") + (auth.user?.lastName?.[0] ?? "") }}
+          </span>
+          <div class="min-w-0">
+            <h1 class="font-display text-2xl font-bold text-white sm:text-3xl">Welcome, {{ auth.user?.firstName }}</h1>
+            <p class="truncate text-sm text-white/65">{{ auth.user?.email }} · {{ auth.user?.studentNumber }}</p>
           </div>
-          <p class="text-xs text-medium-grey">{{ p.category }} &middot; {{ p.activeListingCount }} active listings</p>
-        </RouterLink>
-      </div>
-    </div>
-
-    <!-- Recently viewed -->
-    <div v-if="recentlyViewed.length > 0">
-      <div class="mb-3 flex items-center justify-between">
-        <h2 class="font-display text-lg font-semibold text-uni-navy">Recently viewed</h2>
-        <RouterLink to="/recently-viewed" class="text-xs font-medium text-campus-teal underline">View all &rarr;</RouterLink>
-      </div>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ListingCard v-for="listing in recentlyViewed.slice(0, 3)" :key="listing.id" :listing="listing" />
-      </div>
-    </div>
-
-    <!-- My reports -->
-    <div>
-      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Your reports</h2>
-      <p v-if="reportsError" class="text-sm text-danger">{{ reportsError }}</p>
-      <p v-else-if="reportsLoading" class="text-sm text-medium-grey">Loading...</p>
-      <div v-else-if="myReports.length === 0" class="card text-sm text-medium-grey">
-        Reports you file on listings or providers will show up here with their status.
-      </div>
-      <div v-else class="space-y-2">
-        <div
-          v-for="r in myReports"
-          :key="r.id"
-          class="flex items-center justify-between rounded-card border border-light-grey bg-white px-4 py-3"
-        >
-          <div>
-            <p class="text-sm font-semibold text-uni-navy">{{ REASON_LABELS[r.reason] ?? r.reason }}</p>
-            <p class="text-xs text-medium-grey">{{ r.target.label }} &middot; Filed {{ relativeTime(r.createdAt) }}</p>
-          </div>
-          <span class="badge" :class="STATUS_STYLES[r.status]">{{ STATUS_LABELS[r.status] }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span v-if="auth.isSeller" class="badge border border-white/15 bg-white/10 py-1 text-sky-blue"><Store class="h-3.5 w-3.5" /> Seller</span>
+          <span class="badge border border-white/15 bg-white/10 py-1 text-white/80"><Heart class="h-3.5 w-3.5" /> {{ saved.listings.length }} saved</span>
+          <span class="badge border border-white/15 bg-white/10 py-1 text-white/80"><Users class="h-3.5 w-3.5" /> {{ followed.providers.length }} following</span>
         </div>
       </div>
     </div>
 
-    <div class="h-px bg-light-grey"></div>
+    <!-- Quick actions -->
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <RouterLink v-for="a in tab === 'selling' ? sellerActions : buyerActions" :key="a.to" :to="a.to" class="group card card-interactive flex items-center gap-3 p-4">
+        <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" :class="a.tone">
+          <component :is="a.icon" class="h-5 w-5" />
+          <span v-if="a.to === '/messages' && messagesStore.unreadCount > 0" class="count-dot -right-1.5 -top-1.5">{{ messagesStore.unreadCount }}</span>
+        </span>
+        <span class="text-sm font-semibold text-uni-navy">{{ a.label }}</span>
+      </RouterLink>
+    </div>
 
-    <div v-if="!auth.isSeller" class="card space-y-3">
-      <h2 class="font-display text-lg font-semibold text-uni-navy">Have something to offer?</h2>
-      <p class="text-sm text-charcoal">
-        Unlock seller features on this same account - no separate sign-up needed.
-      </p>
-      <button class="btn-primary" :disabled="becomingSeller" @click="becomeSeller">
-        {{ becomingSeller ? "Unlocking..." : "Become a Seller" }}
+    <!-- Tabs -->
+    <div v-if="auth.isSeller" class="flex gap-1 rounded-control bg-white p-1 shadow-xs ring-1 ring-light-grey sm:w-fit" role="tablist">
+      <button
+        v-for="t in (['selling', 'buying'] as const)"
+        :key="t"
+        role="tab"
+        :aria-selected="tab === t"
+        class="flex-1 rounded-lg px-5 py-2 text-sm font-semibold transition sm:flex-none"
+        :class="tab === t ? 'bg-uni-navy text-white shadow-card' : 'text-medium-grey hover:text-uni-navy'"
+        @click="tab = t"
+      >
+        {{ t === "selling" ? "Selling" : "Buying" }}
+        <span v-if="t === 'selling' && pendingBookings.length + pendingQuestions.length > 0" class="ml-1.5 rounded-full bg-warning px-1.5 text-[10px] text-white">
+          {{ pendingBookings.length + pendingQuestions.length }}
+        </span>
       </button>
     </div>
 
-    <template v-else>
-      <div class="card space-y-3">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="font-display text-lg font-semibold text-uni-navy">Your businesses</h2>
-          <div class="flex flex-wrap items-center gap-3">
-            <select
-              v-if="businesses.length > 1"
-              class="input-field w-full text-xs sm:w-40"
-              @change="scrollToBusiness(($event.target as HTMLSelectElement).value)"
+    <p v-if="error" class="rounded-control border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">{{ error }}</p>
+
+    <!-- ================= BUYING ================= -->
+    <div v-show="tab === 'buying'" class="space-y-10">
+      <!-- Saved listings -->
+      <div>
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="section-title flex items-center gap-2">
+            Saved listings <span v-if="saved.listings.length > 0" class="badge bg-navy-50 text-navy-600">{{ saved.listings.length }}</span>
+          </h2>
+          <button
+            v-if="saved.listings.length > 0"
+            class="btn-ghost px-3 py-1.5 text-xs"
+            @click="savedSelectMode = !savedSelectMode; savedSelected.clear()"
+          >
+            {{ savedSelectMode ? "Cancel" : "Select" }}
+          </button>
+        </div>
+        <EmptyState v-if="saved.listings.length === 0" :icon="Heart" title="Nothing saved yet" description="Tap the heart on any listing to keep it here for later.">
+          <RouterLink to="/" class="btn-secondary">Explore listings</RouterLink>
+        </EmptyState>
+        <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+          <div v-for="listing in saved.listings" :key="listing.id" class="relative">
+            <button
+              v-if="savedSelectMode"
+              class="absolute inset-0 z-10 rounded-card transition"
+              :class="savedSelected.has(listing.id) ? 'bg-teal-500/10 ring-2 ring-teal-500' : 'hover:bg-navy-900/5'"
+              :aria-pressed="savedSelected.has(listing.id)"
+              :aria-label="`Select ${listing.name}`"
+              @click="toggleSavedSelected(listing.id)"
             >
-              <option value="" disabled selected>Jump to business...</option>
+              <span
+                class="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full border-2"
+                :class="savedSelected.has(listing.id) ? 'border-teal-500 bg-teal-500 text-white' : 'border-white bg-white/80'"
+              >
+                <Check v-if="savedSelected.has(listing.id)" class="h-3.5 w-3.5" />
+              </span>
+            </button>
+            <ListingCard :listing="listing" />
+          </div>
+        </div>
+        <div v-if="savedSelectMode && savedSelected.size > 0" class="sticky bottom-24 z-20 mt-4 flex items-center justify-between rounded-full bg-navy-900 py-2 pl-5 pr-2 shadow-pop md:bottom-6">
+          <p class="text-sm font-semibold text-white">{{ savedSelected.size }} selected</p>
+          <button class="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50" :disabled="bulkUnsaving" @click="bulkUnsave">
+            {{ bulkUnsaving ? "Removing…" : "Remove from saved" }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Recommended -->
+      <div v-if="recommended.length > 0">
+        <h2 class="section-title flex items-center gap-2"><Sparkles class="h-5 w-5 text-gold-500" /> Recommended for you</h2>
+        <p class="mb-4 mt-1 text-xs text-medium-grey">Based on what you've saved and followed: {{ favoriteCategories.join(", ") }}</p>
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+          <ListingCard v-for="listing in recommended" :key="listing.id" :listing="listing" />
+        </div>
+      </div>
+
+      <!-- Following -->
+      <div>
+        <h2 class="section-title mb-4 flex items-center gap-2">
+          Providers you follow <span v-if="followed.providers.length > 0" class="badge bg-navy-50 text-navy-600">{{ followed.providers.length }}</span>
+        </h2>
+        <EmptyState v-if="followed.providers.length === 0" :icon="Users" title="You're not following anyone yet" description="Follow a provider from their profile to keep up with their new listings.">
+          <RouterLink to="/providers" class="btn-secondary">Browse providers</RouterLink>
+        </EmptyState>
+        <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <RouterLink v-for="p in followed.providers" :key="p.businessId" :to="`/providers/${p.businessId}`" class="group card card-interactive flex items-center gap-3.5 p-4">
+            <img v-if="p.imageUrl" :src="p.imageUrl" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-light-grey" />
+            <span v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-display font-bold" :class="categoryMeta(p.category).tile">{{ p.businessName.charAt(0) }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="flex items-center gap-1.5 truncate font-display text-sm font-semibold text-uni-navy">
+                {{ p.businessName }} <BadgeCheck v-if="p.verificationStatus === 'VERIFIED'" class="h-4 w-4 shrink-0 text-emerald-500" />
+              </p>
+              <p class="text-xs text-medium-grey">{{ p.category }} · {{ p.activeListingCount }} active listings</p>
+            </div>
+            <ArrowRight class="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" />
+          </RouterLink>
+        </div>
+      </div>
+
+      <!-- Recently viewed -->
+      <div v-if="recentlyViewed.length > 0">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="section-title flex items-center gap-2"><History class="h-5 w-5 text-medium-grey" /> Recently viewed</h2>
+          <RouterLink to="/recently-viewed" class="link text-xs">View all</RouterLink>
+        </div>
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+          <ListingCard v-for="listing in recentlyViewed.slice(0, 4)" :key="listing.id" :listing="listing" />
+        </div>
+      </div>
+
+      <!-- Reports -->
+      <div>
+        <h2 class="section-title mb-4 flex items-center gap-2"><Flag class="h-5 w-5 text-medium-grey" /> Your reports</h2>
+        <p v-if="reportsError" class="text-sm text-danger">{{ reportsError }}</p>
+        <div v-else-if="reportsLoading" class="skeleton h-16 rounded-card"></div>
+        <p v-else-if="myReports.length === 0" class="rounded-card border border-dashed border-light-grey px-5 py-4 text-sm text-medium-grey">
+          Reports you file on listings or providers will show up here with their status.
+        </p>
+        <ul v-else class="divide-y divide-light-grey overflow-hidden rounded-card border border-light-grey bg-white">
+          <li v-for="r in myReports" :key="r.id" class="flex items-center justify-between gap-3 px-5 py-3.5">
+            <div class="min-w-0">
+              <p class="text-sm font-semibold text-charcoal">{{ REASON_LABELS[r.reason] ?? r.reason }}</p>
+              <p class="truncate text-xs text-medium-grey">{{ r.target.label }} · Filed {{ relativeTime(r.createdAt) }}</p>
+            </div>
+            <span class="badge shrink-0" :class="STATUS_STYLES[r.status]">{{ STATUS_LABELS[r.status] }}</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Become a seller -->
+      <div v-if="!auth.isSeller" class="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-gold-50 via-white to-teal-50 p-6 ring-1 ring-light-grey sm:p-8">
+        <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-200/40 blur-3xl"></div>
+        <div class="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="eyebrow text-gold-700">Have something to offer?</p>
+            <h2 class="mt-1 font-display text-xl font-bold text-uni-navy">Unlock seller tools on this same account</h2>
+            <p class="mt-1 max-w-lg text-sm text-medium-grey">List products and services, take orders and bookings, run promo codes and track your sales - no separate sign-up.</p>
+          </div>
+          <button class="btn-primary shrink-0 px-6 py-3" :disabled="becomingSeller" @click="becomeSeller">
+            <Store class="h-4 w-4" /> {{ becomingSeller ? "Unlocking…" : "Become a seller" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= SELLING ================= -->
+    <div v-if="auth.isSeller" v-show="tab === 'selling'" class="space-y-8">
+      <SalesAnalytics v-if="businesses.length > 0" :businesses="businesses" />
+
+      <div v-if="sellerBookings.length > 0 || pendingQuestions.length > 0" class="grid gap-6 lg:grid-cols-2">
+        <!-- Booking requests -->
+        <div v-if="sellerBookings.length > 0" class="card space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="section-title">Booking requests</h2>
+            <span v-if="pendingBookings.length > 0" class="badge bg-amber-50 text-warning">{{ pendingBookings.length }} pending</span>
+          </div>
+          <ul class="space-y-2.5">
+            <li
+              v-for="b in sellerBookings"
+              :key="b.id"
+              class="rounded-control border p-3.5"
+              :class="b.status === 'PENDING' ? 'border-amber-200 bg-amber-50/40' : 'border-light-grey opacity-70'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="truncate text-sm font-semibold text-uni-navy">{{ b.listingName }}</span>
+                <span class="badge" :class="BOOKING_STATUS_STYLES[b.status]">{{ b.status.charAt(0) + b.status.slice(1).toLowerCase() }}</span>
+              </div>
+              <p class="mt-0.5 text-xs text-medium-grey">{{ b.buyerName }} · {{ formatDateTime(b.preferredAt) }}</p>
+              <p v-if="b.note" class="mt-1.5 text-xs italic text-charcoal">“{{ b.note }}”</p>
+
+              <div v-if="b.status === 'PENDING' && decliningBookingId !== b.id" class="mt-3 flex gap-2">
+                <button class="btn bg-success px-3 py-1.5 text-xs text-white hover:bg-green-700" :disabled="bookingActing === b.id" @click="acceptBooking(b.id)">Accept</button>
+                <button class="btn-secondary px-3 py-1.5 text-xs text-danger" :disabled="bookingActing === b.id" @click="startDecline(b.id)">Decline</button>
+              </div>
+              <div v-if="decliningBookingId === b.id" class="mt-3 space-y-2">
+                <textarea v-model="declineReason" rows="2" placeholder="Reason (optional, shown to the student)" class="input-field resize-y"></textarea>
+                <div class="flex justify-end gap-2">
+                  <button class="btn-secondary px-3 py-1.5 text-xs" @click="decliningBookingId = null">Cancel</button>
+                  <button class="btn-danger px-3 py-1.5 text-xs" :disabled="bookingActing === b.id" @click="confirmDecline(b.id)">Decline booking</button>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Pending questions -->
+        <div v-if="pendingQuestions.length > 0" class="card space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="section-title">Questions awaiting reply</h2>
+            <RouterLink to="/questions" class="link shrink-0 text-xs">View all</RouterLink>
+          </div>
+          <ul class="space-y-3">
+            <li v-for="q in pendingQuestions" :key="q.id" class="rounded-control border border-light-grey p-3.5">
+              <p class="text-xs text-medium-grey">{{ q.askerName }} on <span class="font-medium text-charcoal">{{ q.listingName }}</span></p>
+              <p class="mt-1 text-sm font-medium text-charcoal">{{ q.questionText }}</p>
+              <div class="mt-2.5 flex gap-2">
+                <input v-model="answerDrafts[q.id]" class="input-field py-2" placeholder="Type your answer…" @keyup.enter="answerQuestion(q.id)" />
+                <button class="btn-primary shrink-0 px-3.5 py-2" :disabled="answeringId === q.id || !answerDrafts[q.id]?.trim()" @click="answerQuestion(q.id)">Reply</button>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Businesses -->
+      <div class="space-y-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 class="section-title">Your businesses</h2>
+          <div class="flex flex-wrap items-center gap-3">
+            <select v-if="businesses.length > 1" class="input-field w-full py-2 text-xs sm:w-48" @change="scrollToBusiness(($event.target as HTMLSelectElement).value)">
+              <option value="" disabled selected>Jump to business…</option>
               <option v-for="b in businesses" :key="b.id" :value="b.id">{{ b.businessName }}</option>
             </select>
-            <RouterLink to="/my-listings" class="text-xs font-medium text-campus-teal underline">View all listings &rarr;</RouterLink>
+            <RouterLink to="/my-listings" class="link text-xs">Manage all listings</RouterLink>
           </div>
         </div>
 
-        <div v-if="businesses.length === 0" class="text-sm text-medium-grey">
-          You haven't registered a business yet - add one below to start listing.
-        </div>
+        <EmptyState v-if="businesses.length === 0" :icon="Store" title="Register your first business" description="Add a business below - once an admin verifies it, your listings get the verified badge." />
 
-        <ul v-else class="space-y-2">
-          <li v-for="business in businesses" :id="`business-${business.id}`" :key="business.id" class="rounded-control border border-light-grey p-3 transition">
+        <div v-for="business in businesses" :id="`business-${business.id}`" :key="business.id" class="card space-y-4 transition">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex min-w-0 items-center gap-3">
+              <img v-if="business.imageUrl" :src="business.imageUrl" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-light-grey" />
+              <span v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-display font-bold" :class="categoryMeta(business.category).tile">{{ business.businessName.charAt(0) }}</span>
+              <div class="min-w-0">
+                <RouterLink :to="`/providers/${business.id}`" class="block truncate font-display font-semibold text-uni-navy hover:text-teal-700">{{ business.businessName }}</RouterLink>
+                <p class="text-xs text-medium-grey">{{ business.category }}</p>
+              </div>
+            </div>
+            <span class="badge shrink-0" :class="VERIFICATION_STYLES[business.verificationStatus]">
+              {{ business.verificationStatus.charAt(0) + business.verificationStatus.slice(1).toLowerCase() }}
+            </span>
+          </div>
+
+          <div v-if="business.verificationStatus === 'PENDING'" class="rounded-control border border-gold-200 bg-gold-50/60 p-4">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-uni-navy">{{ business.businessName }}</span>
-              <span
-                class="badge"
-                :class="{
-                  'bg-success/15 text-success': business.verificationStatus === 'VERIFIED',
-                  'bg-warning/15 text-warning': business.verificationStatus === 'PENDING',
-                  'bg-danger/15 text-danger': business.verificationStatus === 'REJECTED',
-                }"
-              >
-                {{ business.verificationStatus }}
+              <span class="text-sm font-semibold text-uni-navy">Get verified</span>
+              <span class="text-xs font-semibold text-medium-grey">
+                {{ (business.description ? 1 : 0) + ((listingsByBusiness[business.id] ?? []).length > 0 ? 1 : 0) + (business.imageUrl ? 1 : 0) }} / 3
               </span>
             </div>
-            <p class="text-sm text-medium-grey">{{ business.category }}</p>
-
-            <div
-              v-if="business.verificationStatus === 'PENDING'"
-              class="mt-3 space-y-2 rounded-control border border-academic-gold/50 bg-academic-gold/5 p-3"
-            >
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-semibold text-uni-navy">Get {{ business.businessName }} verified</span>
-                <span class="text-xs font-semibold text-medium-grey">
-                  {{ (business.description ? 1 : 0) + ((listingsByBusiness[business.id] ?? []).length > 0 ? 1 : 0) + (business.imageUrl ? 1 : 0) }} / 3
+            <ul class="mt-2.5 space-y-1.5 text-sm">
+              <li
+                v-for="item in [
+                  { done: !!business.description, label: 'Business profile complete' },
+                  { done: (listingsByBusiness[business.id] ?? []).length > 0, label: 'At least one listing added' },
+                  { done: !!business.imageUrl, label: 'Business logo added (recommended)' },
+                ]"
+                :key="item.label"
+                class="flex items-center gap-2"
+                :class="item.done ? 'text-charcoal' : 'text-medium-grey'"
+              >
+                <span class="flex h-5 w-5 items-center justify-center rounded-full" :class="item.done ? 'bg-success text-white' : 'border-2 border-light-grey'">
+                  <Check v-if="item.done" class="h-3 w-3" />
                 </span>
-              </div>
-              <ul class="space-y-1 text-sm">
-                <li class="flex items-center gap-2 text-charcoal">
-                  <span class="flex h-5 w-5 items-center justify-center rounded-full bg-success text-xs text-white">✓</span>
-                  Business profile complete
-                </li>
-                <li class="flex items-center gap-2" :class="(listingsByBusiness[business.id] ?? []).length > 0 ? 'text-charcoal' : 'text-medium-grey'">
-                  <span
-                    class="flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                    :class="(listingsByBusiness[business.id] ?? []).length > 0 ? 'bg-success text-white' : 'border-2 border-light-grey'"
-                  >{{ (listingsByBusiness[business.id] ?? []).length > 0 ? "✓" : "" }}</span>
-                  At least one listing added
-                </li>
-                <li class="flex items-center gap-2" :class="business.imageUrl ? 'text-charcoal' : 'text-medium-grey'">
-                  <span
-                    class="flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                    :class="business.imageUrl ? 'bg-success text-white' : 'border-2 border-light-grey'"
-                  >{{ business.imageUrl ? "✓" : "" }}</span>
-                  Add a business logo <span class="text-xs">(optional but recommended)</span>
-                </li>
-              </ul>
-              <p class="text-xs text-medium-grey">An admin reviews new businesses within a few days - you can keep editing while you wait.</p>
-            </div>
+                {{ item.label }}
+              </li>
+            </ul>
+            <p class="mt-2.5 text-xs text-medium-grey">An admin reviews new businesses within a few days - you can keep editing while you wait.</p>
+          </div>
 
-            <div v-if="statsByBusiness[business.id]" class="mt-3 grid grid-cols-4 gap-2 rounded-control bg-soft-grey p-3 text-center">
-              <div>
-                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].totalListings }}</p>
-                <p class="text-[11px] text-medium-grey">Listings</p>
-              </div>
-              <div>
-                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].totalViews }}</p>
-                <p class="text-[11px] text-medium-grey">Views</p>
-              </div>
-              <div>
-                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].totalSaves }}</p>
-                <p class="text-[11px] text-medium-grey">Saves</p>
-              </div>
-              <div>
-                <p class="font-display text-lg font-bold text-uni-navy">{{ statsByBusiness[business.id].followerCount }}</p>
-                <p class="text-[11px] text-medium-grey">Followers</p>
-              </div>
+          <dl v-if="statsByBusiness[business.id]" class="grid grid-cols-4 divide-x divide-light-grey rounded-control bg-soft-grey py-3 text-center">
+            <div v-for="stat in [
+              { label: 'Listings', value: statsByBusiness[business.id].totalListings },
+              { label: 'Views', value: statsByBusiness[business.id].totalViews },
+              { label: 'Saves', value: statsByBusiness[business.id].totalSaves },
+              { label: 'Followers', value: statsByBusiness[business.id].followerCount },
+            ]" :key="stat.label">
+              <dd class="text-lg font-semibold text-charcoal">{{ stat.value }}</dd>
+              <dt class="text-[11px] text-medium-grey">{{ stat.label }}</dt>
             </div>
+          </dl>
 
-            <ul class="mt-2 space-y-2">
-              <li v-for="listing in listingsByBusiness[business.id] ?? []" :key="listing.id">
-                <!-- Normal row -->
-                <div v-if="editingListingId !== listing.id" class="flex items-center justify-between rounded-control bg-soft-grey px-3 py-2 text-sm">
-                  <span :class="{ 'text-medium-grey line-through': listing.status === 'INACTIVE' }">
-                    {{ listing.name }} · {{ LISTING_STATUS_LABELS[listing.status] ?? listing.status }} · {{ listing.viewCount }} views
+          <ul v-if="(listingsByBusiness[business.id] ?? []).length > 0" class="divide-y divide-light-grey rounded-control border border-light-grey">
+            <li v-for="listing in listingsByBusiness[business.id] ?? []" :key="listing.id">
+              <div v-if="editingListingId !== listing.id" class="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 text-sm">
+                <div class="min-w-0">
+                  <RouterLink :to="`/listings/${listing.id}`" class="font-medium hover:text-teal-700" :class="listing.status === 'INACTIVE' ? 'text-medium-grey line-through' : 'text-charcoal'">
+                    {{ listing.name }}
+                  </RouterLink>
+                  <p class="flex flex-wrap items-center gap-2 text-xs text-medium-grey">
+                    {{ LISTING_STATUS_LABELS[listing.status] ?? listing.status }} · {{ listing.viewCount }} views
                     <span
                       v-if="listing.type === 'PRODUCT' && listing.status === 'ACTIVE' && listing.lowStockThreshold != null && (listing.stockQuantity ?? 0) <= listing.lowStockThreshold"
-                      class="badge bg-warning/15 text-warning ml-1"
+                      class="badge bg-amber-50 text-warning"
                     >
-                      ⚠️ Low stock - {{ listing.stockQuantity }} left
+                      Low stock · {{ listing.stockQuantity }} left
                     </span>
-                  </span>
-                  <div class="flex items-center gap-3">
-                    <button class="text-xs font-medium text-campus-teal underline" @click="startEdit(listing)">Edit</button>
-                    <button
-                      v-if="listing.status === 'ACTIVE'"
-                      class="text-xs font-medium text-danger underline"
-                      @click="deactivateListing(listing.id)"
-                    >
-                      Deactivate
-                    </button>
-                    <button
-                      v-else-if="listing.status === 'SOLD_OUT'"
-                      class="text-xs font-medium text-campus-teal underline"
-                      @click="startEdit(listing)"
-                    >
-                      Restock
-                    </button>
-                    <button v-else class="text-xs font-medium text-success underline" @click="reactivateListing(listing.id)">
-                      Reactivate
-                    </button>
-                  </div>
+                  </p>
                 </div>
+                <div class="flex items-center gap-1">
+                  <button class="btn-ghost px-2.5 py-1.5 text-xs" @click="startEdit(listing)"><Pencil class="h-3.5 w-3.5" /> Edit</button>
+                  <button v-if="listing.status === 'ACTIVE'" class="btn-ghost px-2.5 py-1.5 text-xs hover:text-danger" @click="deactivateListing(listing.id)">Deactivate</button>
+                  <button v-else-if="listing.status === 'SOLD_OUT'" class="btn-ghost px-2.5 py-1.5 text-xs text-teal-700" @click="startEdit(listing)">Restock</button>
+                  <button v-else class="btn-ghost px-2.5 py-1.5 text-xs text-success" @click="reactivateListing(listing.id)">Reactivate</button>
+                </div>
+              </div>
 
-                <!-- Edit form -->
-                <div v-else class="space-y-3 rounded-control border border-campus-teal bg-white p-3">
-                  <div class="flex items-center justify-between text-sm font-medium text-uni-navy">
-                    <span>Editing: {{ listing.name }}</span>
-                    <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
-                  </div>
-                  <div class="grid gap-2 sm:grid-cols-2">
-                    <input v-model="editForm.name" class="input-field sm:col-span-2" placeholder="Title" />
+              <div v-else class="space-y-3 bg-teal-50/30 p-4">
+                <div class="flex items-center justify-between text-sm font-semibold text-uni-navy">
+                  <span>Editing: {{ listing.name }}</span>
+                  <span class="badge bg-navy-50 text-navy-600">{{ listing.type === "PRODUCT" ? "Product" : "Service" }}</span>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div class="sm:col-span-2"><label class="field-label">Title</label><input v-model="editForm.name" class="input-field" /></div>
+                  <div>
+                    <label class="field-label">Category</label>
                     <select v-model="editForm.category" class="input-field">
-                      <option v-if="editForm.category && !categories.includes(editForm.category)" :value="editForm.category">
-                        {{ editForm.category }}
-                      </option>
+                      <option v-if="editForm.category && !categories.includes(editForm.category)" :value="editForm.category">{{ editForm.category }}</option>
                       <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
                     </select>
+                  </div>
+                  <div>
+                    <label class="field-label">Status</label>
                     <select v-model="editForm.status" class="input-field">
                       <option value="ACTIVE">Active</option>
                       <option value="INACTIVE">Inactive</option>
                     </select>
-                    <textarea v-model="editForm.description" class="input-field sm:col-span-2" rows="2"></textarea>
-                    <input v-model.number="editForm.price" type="number" min="0" step="0.01" class="input-field" placeholder="Price (ZAR)" />
-                    <template v-if="listing.type === 'PRODUCT'">
-                      <input
-                        v-model.number="editForm.stockQuantity"
-                        type="number"
-                        min="0"
-                        class="input-field"
-                        placeholder="Stock quantity"
-                      />
-                      <input
-                        v-model="editForm.imageUrl"
-                        class="input-field sm:col-span-2"
-                        placeholder="Image URL (optional)"
-                      />
-                      <div class="sm:col-span-2">
-                        <label class="mb-1 block text-xs font-medium text-medium-grey">Low-stock alert threshold (optional)</label>
-                        <input
-                          v-model.number="editForm.lowStockThreshold"
-                          type="number"
-                          min="0"
-                          class="input-field"
-                          placeholder="e.g. 20"
-                        />
-                      </div>
-                    </template>
-                    <template v-else>
-                      <input
-                        v-model.number="editForm.durationMinutes"
-                        type="number"
-                        min="0"
-                        class="input-field"
-                        placeholder="Duration (minutes)"
-                      />
-                      <input
-                        v-model="editForm.availabilitySchedule"
-                        class="input-field sm:col-span-2"
-                        placeholder="Availability (e.g. Weekdays 2-6pm)"
-                      />
-                    </template>
                   </div>
-                  <div class="flex justify-end gap-2">
-                    <button class="btn-secondary text-sm" @click="cancelEdit">Cancel</button>
-                    <button class="btn-primary text-sm" :disabled="savingEdit" @click="saveEdit(listing)">
-                      {{ savingEdit ? "Saving..." : "Save changes" }}
-                    </button>
-                  </div>
+                  <div class="sm:col-span-2"><label class="field-label">Description</label><textarea v-model="editForm.description" class="input-field" rows="2"></textarea></div>
+                  <div><label class="field-label">Price (ZAR)</label><input v-model.number="editForm.price" type="number" min="0" step="0.01" class="input-field" /></div>
+                  <template v-if="listing.type === 'PRODUCT'">
+                    <div><label class="field-label">Stock quantity</label><input v-model.number="editForm.stockQuantity" type="number" min="0" class="input-field" /></div>
+                    <div class="sm:col-span-2"><label class="field-label">Image URL (optional)</label><input v-model="editForm.imageUrl" class="input-field" placeholder="https://…" /></div>
+                    <div class="sm:col-span-2">
+                      <label class="field-label">Low-stock alert threshold (optional)</label>
+                      <input v-model.number="editForm.lowStockThreshold" type="number" min="0" class="input-field" placeholder="e.g. 20" />
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div><label class="field-label">Duration (minutes)</label><input v-model.number="editForm.durationMinutes" type="number" min="0" class="input-field" /></div>
+                    <div class="sm:col-span-2"><label class="field-label">Availability</label><input v-model="editForm.availabilitySchedule" class="input-field" placeholder="e.g. Weekdays 2-6pm" /></div>
+                  </template>
                 </div>
-              </li>
-            </ul>
-          </li>
-        </ul>
-
-        <form class="grid gap-2 border-t border-light-grey pt-3 sm:grid-cols-3" @submit.prevent="createBusiness">
-          <input v-model="newBusiness.businessName" required placeholder="Business name" class="input-field" />
-          <select v-model="newBusiness.category" required class="input-field">
-            <option value="" disabled>Select category</option>
-            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
-          </select>
-          <input v-model="newBusiness.description" required placeholder="Short description" class="input-field" />
-          <button type="submit" class="btn-secondary sm:col-span-3" :disabled="creatingBusiness">
-            {{ creatingBusiness ? "Adding..." : "Add business" }}
-          </button>
-        </form>
+                <div class="flex justify-end gap-2">
+                  <button class="btn-secondary" @click="cancelEdit">Cancel</button>
+                  <button class="btn-primary" :disabled="savingEdit" @click="saveEdit(listing)">{{ savingEdit ? "Saving…" : "Save changes" }}</button>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
       </div>
 
-      <div v-if="sellerBookings.length > 0" class="card space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-display text-lg font-semibold text-uni-navy">Booking requests</h2>
-          <span v-if="pendingBookings.length > 0" class="badge bg-warning/15 text-warning">{{ pendingBookings.length }} pending</span>
-        </div>
-
-        <div class="space-y-2">
-          <div
-            v-for="b in sellerBookings"
-            :key="b.id"
-            class="rounded-control border p-3"
-            :class="b.status === 'PENDING' ? 'border-warning/40 bg-warning/5' : 'border-light-grey opacity-70'"
-          >
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold text-uni-navy">{{ b.listingName }}</span>
-              <span class="badge" :class="BOOKING_STATUS_STYLES[b.status]">{{ b.status.charAt(0) + b.status.slice(1).toLowerCase() }}</span>
+      <div class="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <!-- New listing -->
+        <div v-if="businesses.length > 0" class="card space-y-4">
+          <h2 class="section-title flex items-center gap-2"><Plus class="h-5 w-5 text-teal-600" /> New listing</h2>
+          <form class="grid gap-3 sm:grid-cols-2" @submit.prevent="createListing">
+            <div class="sm:col-span-2">
+              <label class="field-label">Business</label>
+              <select v-model="newListing.businessId" required class="input-field">
+                <option value="" disabled>Select business</option>
+                <option v-for="business in businesses" :key="business.id" :value="business.id">{{ business.businessName }}</option>
+              </select>
             </div>
-            <p class="mt-0.5 text-xs text-medium-grey">{{ b.buyerName }} &middot; {{ formatDateTime(b.preferredAt) }}</p>
-            <p v-if="b.note" class="mt-1 text-xs text-charcoal">"{{ b.note }}"</p>
-
-            <div v-if="b.status === 'PENDING' && decliningBookingId !== b.id" class="mt-2 flex gap-2">
-              <button
-                class="inline-flex items-center justify-center rounded-control bg-success px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                :disabled="bookingActing === b.id"
-                @click="acceptBooking(b.id)"
-              >
-                Accept
-              </button>
-              <button
-                class="inline-flex items-center justify-center rounded-control border border-danger bg-white px-3 py-1.5 text-xs font-semibold text-danger disabled:opacity-50"
-                :disabled="bookingActing === b.id"
-                @click="startDecline(b.id)"
-              >
-                Decline
-              </button>
-            </div>
-
-            <div v-if="decliningBookingId === b.id" class="mt-2 space-y-2">
-              <textarea v-model="declineReason" rows="2" placeholder="Reason (optional, shown to the student)" class="input-field resize-y"></textarea>
-              <div class="flex justify-end gap-2">
-                <button class="btn-secondary text-xs" @click="decliningBookingId = null">Cancel</button>
+            <div class="sm:col-span-2">
+              <label class="field-label">Type</label>
+              <div class="grid grid-cols-2 gap-1 rounded-control bg-soft-grey p-1">
                 <button
-                  class="inline-flex items-center justify-center rounded-control bg-danger px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                  :disabled="bookingActing === b.id"
-                  @click="confirmDecline(b.id)"
+                  v-for="k in (['PRODUCT', 'SERVICE'] as const)"
+                  :key="k"
+                  type="button"
+                  class="rounded-lg py-2 text-xs font-semibold transition"
+                  :class="newListing.kind === k ? 'bg-white text-uni-navy shadow-card' : 'text-medium-grey hover:text-uni-navy'"
+                  @click="newListing.kind = k"
                 >
-                  Decline booking
+                  {{ k === "PRODUCT" ? "Product" : "Service" }}
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="pendingQuestions.length > 0" class="card space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-display text-lg font-semibold text-uni-navy">Questions awaiting your reply</h2>
-          <div class="flex items-center gap-3">
-            <span class="badge bg-warning/15 text-warning">{{ pendingQuestions.length }} pending</span>
-            <RouterLink to="/questions" class="text-xs font-medium text-campus-teal underline">View all &rarr;</RouterLink>
-          </div>
-        </div>
-        <div class="space-y-3">
-          <div v-for="q in pendingQuestions" :key="q.id" class="rounded-control border border-light-grey p-3">
-            <p class="text-xs text-medium-grey">{{ q.askerName }} asked on <span class="font-medium text-charcoal">{{ q.listingName }}</span></p>
-            <p class="mt-1 text-sm font-medium text-charcoal">{{ q.questionText }}</p>
-            <div class="mt-2 flex gap-2">
-              <input v-model="answerDrafts[q.id]" class="input-field" placeholder="Type your answer..." @keyup.enter="answerQuestion(q.id)" />
-              <button class="btn-primary shrink-0 text-sm" :disabled="answeringId === q.id || !answerDrafts[q.id]?.trim()" @click="answerQuestion(q.id)">
-                Reply
-              </button>
+            <div class="sm:col-span-2"><label class="field-label">Title</label><input v-model="newListing.name" required class="input-field" placeholder="e.g. A3 colour poster printing" /></div>
+            <div class="sm:col-span-2"><label class="field-label">Description</label><textarea v-model="newListing.description" required class="input-field" rows="3" placeholder="What's included, turnaround time, pickup spot…"></textarea></div>
+            <div>
+              <label class="field-label">Category</label>
+              <select v-model="newListing.category" required class="input-field">
+                <option value="" disabled>Select category</option>
+                <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+              </select>
             </div>
-          </div>
+            <div><label class="field-label">Price (ZAR)</label><input v-model.number="newListing.price" type="number" min="0" step="0.01" required class="input-field" /></div>
+            <template v-if="newListing.kind === 'PRODUCT'">
+              <div><label class="field-label">Stock quantity</label><input v-model.number="newListing.stockQuantity" type="number" min="0" class="input-field" /></div>
+              <div><label class="field-label">Image URL (optional)</label><input v-model="newListing.imageUrl" class="input-field" placeholder="https://…" /></div>
+            </template>
+            <template v-else>
+              <div><label class="field-label">Duration (minutes)</label><input v-model.number="newListing.durationMinutes" type="number" min="0" class="input-field" /></div>
+              <div><label class="field-label">Availability</label><input v-model="newListing.availabilitySchedule" class="input-field" placeholder="e.g. Weekdays 2-6pm" /></div>
+            </template>
+            <button type="submit" class="btn-primary sm:col-span-2" :disabled="creatingListing">{{ creatingListing ? "Publishing…" : "Publish listing" }}</button>
+          </form>
+        </div>
+
+        <!-- Add business -->
+        <div class="card h-fit space-y-4">
+          <h2 class="section-title flex items-center gap-2"><Store class="h-5 w-5 text-teal-600" /> Add a business</h2>
+          <form class="space-y-3" @submit.prevent="createBusiness">
+            <div><label class="field-label">Business name</label><input v-model="newBusiness.businessName" required class="input-field" /></div>
+            <div>
+              <label class="field-label">Category</label>
+              <select v-model="newBusiness.category" required class="input-field">
+                <option value="" disabled>Select category</option>
+                <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+              </select>
+            </div>
+            <div><label class="field-label">Short description</label><input v-model="newBusiness.description" required class="input-field" /></div>
+            <button type="submit" class="btn-secondary w-full" :disabled="creatingBusiness">{{ creatingBusiness ? "Adding…" : "Add business" }}</button>
+          </form>
         </div>
       </div>
-
-      <div v-if="businesses.length > 0" class="card space-y-3">
-        <h2 class="font-display text-lg font-semibold text-uni-navy">New listing</h2>
-        <form class="grid gap-2 sm:grid-cols-2" @submit.prevent="createListing">
-          <select v-model="newListing.businessId" required class="input-field sm:col-span-2">
-            <option value="" disabled>Select business</option>
-            <option v-for="business in businesses" :key="business.id" :value="business.id">
-              {{ business.businessName }}
-            </option>
-          </select>
-          <select v-model="newListing.kind" class="input-field">
-            <option value="PRODUCT">Product</option>
-            <option value="SERVICE">Service</option>
-          </select>
-          <select v-model="newListing.category" required class="input-field">
-            <option value="" disabled>Select category</option>
-            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
-          </select>
-          <input v-model="newListing.name" required placeholder="Title" class="input-field sm:col-span-2" />
-          <textarea
-            v-model="newListing.description"
-            required
-            placeholder="Description"
-            class="input-field sm:col-span-2"
-            rows="2"
-          ></textarea>
-          <input
-            v-model.number="newListing.price"
-            type="number"
-            min="0"
-            step="0.01"
-            required
-            placeholder="Price (ZAR)"
-            class="input-field"
-          />
-
-          <input
-            v-if="newListing.kind === 'PRODUCT'"
-            v-model.number="newListing.stockQuantity"
-            type="number"
-            min="0"
-            placeholder="Stock quantity"
-            class="input-field"
-          />
-          <input
-            v-if="newListing.kind === 'PRODUCT'"
-            v-model="newListing.imageUrl"
-            placeholder="Image URL (optional)"
-            class="input-field sm:col-span-2"
-          />
-          <input
-            v-if="newListing.kind === 'SERVICE'"
-            v-model.number="newListing.durationMinutes"
-            type="number"
-            min="0"
-            placeholder="Duration (minutes)"
-            class="input-field"
-          />
-
-          <input
-            v-if="newListing.kind === 'SERVICE'"
-            v-model="newListing.availabilitySchedule"
-            placeholder="Availability (e.g. Weekdays 2-6pm)"
-            class="input-field sm:col-span-2"
-          />
-
-          <button type="submit" class="btn-primary sm:col-span-2" :disabled="creatingListing">
-            {{ creatingListing ? "Publishing..." : "Publish listing" }}
-          </button>
-        </form>
-      </div>
-    </template>
+    </div>
   </section>
 </template>

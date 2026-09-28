@@ -4,13 +4,29 @@ Connect. Buy. Sell & Succeed. — a centralized digital marketplace for student 
 in university residences. See `UniLinkHub_Documentation.pdf` for the full project brief and
 `UniLinkHub Brand Guide.pdf` for the visual/voice standards this UI follows.
 
+## Repository layout
+
+```
+UniLinkHub/
+├── backend/     Spring Boot API (Maven project: pom.xml, src/main, src/test)
+├── frontend/    Vue 3 + Vite single-page app
+├── Dockerfile   builds both into one deployable image (comments inside explain how)
+└── README.md
+```
+
+The two halves only meet over HTTP (`/api/**`): in dev, Vite proxies `/api` to the backend; in
+production the Dockerfile folds the frontend's build into the backend's static resources. If
+you use IntelliJ, open the repo root and, if it doesn't pick the module up automatically, right-
+click `backend/pom.xml` → *Add as Maven Project*.
+
 ## Stack
 
 - **Backend:** Spring Boot 3.3 (Java 21), Spring Security + JWT, Spring Data JPA, MySQL
   (H2 for tests), Domain-Driven Design package layout (`domain` / `repository` port /
   `infrastructure` adapter / `application` / `web` per bounded context).
 - **Frontend:** Vue 3 + TypeScript, Vite, Pinia, Vue Router, Tailwind CSS (configured with the
-  brand guide's exact colour tokens and Poppins/Inter type scale).
+  brand guide's navy/teal/gold tokens plus tonal scales around them, and the Poppins/Inter type
+  scale), Lucide icons.
 
 The project docs floated Next.js/React in one section and Vue.js in another (the two brand/
 project documents don't fully agree); this build follows the Project Documentation's explicit
@@ -198,9 +214,9 @@ between buyer and seller on pickup, the same as bookings already worked.
   user. Success toasts are wired into the highest-traffic actions across the app: auth, cart/
   checkout, messaging, listings, bookings, reviews, Q&amp;A, promo codes, saved searches, and the
   full admin console.
-- Mobile responsive down to a 320px-wide viewport. The header collapses into a hamburger menu
-  below 640px (cart/notifications stay visible, everything else moves into the slide-down panel);
-  the separate admin header does the same for its "Admin console" badge. "My listings" swaps its
+- Mobile responsive down to a 320px-wide viewport. Below 768px the primary navigation moves to a
+  bottom tab bar (Explore / Providers / Search / Messages / Dashboard), and everything else lives
+  in the avatar menu. "My listings" swaps its
   table for a stacked card list on mobile rather than making the table horizontally scrollable,
   because its per-row action menu is positioned to escape the row and would get clipped by a
   scroll container - a direct list of action links avoids that instead of fighting it. Verified
@@ -208,6 +224,32 @@ between buyer and seller on pickup, the same as bookings already worked.
   screenshot tool turned out to render this app inaccurately at narrow widths) across every route,
   every admin tab, and the booking/message modals at exactly 320px, checking each page's actual
   `scrollWidth` against its viewport rather than trusting a screenshot.
+
+### Design refresh + new features (September 2026)
+
+- **Redesigned UI.** A shared design system in `frontend/src/style.css` + `tailwind.config.js`
+  (buttons, inputs, cards, chips, skeletons, modals, shadows, motion) so every page picks up the
+  same look. Sticky glass header with active-page states and an avatar menu, a landing page with
+  live platform stats and a trending carousel, split-screen auth pages, a two-column listing page
+  with a sticky purchase panel, a site footer, route transitions, skeleton loaders and consistent
+  Lucide icons in place of the old emoji and pasted SVG paths. The neutral greys were darkened
+  slightly - the brand manual's `#8A94A6` is only ~3:1 on white, below WCAG AA for body text.
+- **Command palette (⌘K / Ctrl+K, or `/`).** Global search across listings, sellers, categories
+  and pages, fully keyboard-driven (`frontend/src/components/CommandPalette.vue`).
+- **Seller sales analytics.** `GET /api/orders/seller/analytics?days=30&businessId=` returns
+  revenue, orders, average order value, unique/repeat buyers and a daily series for the window,
+  each compared with the previous window of the same length, plus best-selling listings. The
+  dashboard's new *Selling* tab charts it (7/30/90 days, per business, with a table view).
+- **Public platform stats.** `GET /api/stats/public` (no auth) - students, verified businesses,
+  live listings and completed orders, shown in the landing-page hero.
+- **Dashboard split into Buying / Selling tabs**, with quick-action tiles.
+- **Smaller additions:** password show/hide + strength meter on sign-up, a copyable promo-code
+  chip on listings, "Only N left" and "New" badges on cards, images that fail to load fall back to
+  a category-tinted placeholder, and the app is installable to a phone's home screen (web manifest).
+- **Fixes along the way:** search autocomplete rendered listing names with `v-html` unescaped (a
+  stored-XSS hole) - now escaped; moving between two listings (e.g. via "More from this seller")
+  kept showing the old one; header dropdowns never closed on an outside click; the provider
+  directory's banner heading was navy-on-navy and invisible.
 
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
@@ -226,7 +268,7 @@ test script below) — it isn't just "compiles", it actually runs.
 
 The app talks to MySQL via `spring-boot-starter-data-jpa` + `mysql-connector-j`, and creates/
 updates its own schema on startup (`spring.jpa.hibernate.ddl-auto=update` in
-`src/main/resources/application.yml`) — **you do not need to write `CREATE TABLE` statements
+`backend/src/main/resources/application.yml`) — **you do not need to write `CREATE TABLE` statements
 yourself.** You only need to create the database and a user once.
 
 ### 1. Create the database and app user
@@ -348,9 +390,10 @@ UPDATE unilinkhub.users SET role = 'ADMIN' WHERE email = 'someone@mycput.ac.za';
 ### Backend
 
 1. Run the two `CREATE DATABASE` / `CREATE USER` statements above, once.
-2. Start the app (no local Maven install needed if you're on IntelliJ — it bundles one; or use
-   `mvn` directly if you have it on PATH):
+2. Start the app from the `backend/` folder (no local Maven install needed if you're on
+   IntelliJ — it bundles one; or use `mvn` directly if you have it on PATH):
    ```sh
+   cd backend
    mvn spring-boot:run
    ```
    Env vars you can override: `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` (set a real 32+ byte
@@ -373,7 +416,7 @@ to `localhost:8081` in dev (`frontend/vite.config.ts`), so no CORS config is nee
 
 ## Automated smoke test
 
-`src/test/java/za/co/unilinkhub/MarketplaceSmokeTest.java` walks the same golden path as the
+`backend/src/test/java/za/co/unilinkhub/MarketplaceSmokeTest.java` walks the same golden path as the
 curl script below, but as a real `mvn test` (MockMvc against the H2 test database, no server or
 MySQL needed): register a seller and buyer, list a product, browse/search for it, message
 between buyer and seller with unread counts, apply a promo code at checkout and confirm the

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { Megaphone, X } from "@lucide/vue";
 import { api } from "@/lib/api";
 import type { AnnouncementDTO } from "@/lib/types";
 
@@ -33,13 +34,17 @@ onMounted(load);
 </script>
 
 <template>
-  <div v-if="announcement && !dismissed" class="bg-academic-gold/15 px-4 py-2.5 sm:px-6">
-    <div class="mx-auto flex max-w-6xl items-center justify-between gap-3">
-      <p class="flex min-w-0 items-center gap-2 text-sm text-uni-navy">
-        <span class="shrink-0">📢</span>
-        <span class="min-w-0">{{ announcement.message }}</span>
+  <div v-if="announcement && !dismissed" class="border-b border-gold-200/60 bg-gradient-to-r from-gold-50 via-white to-teal-50 px-4 py-2.5 sm:px-6">
+    <div class="mx-auto flex max-w-7xl items-center justify-between gap-3">
+      <p class="flex min-w-0 items-center gap-2.5 text-sm text-navy-800">
+        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-700">
+          <Megaphone class="h-3.5 w-3.5" />
+        </span>
+        <span class="min-w-0 font-medium">{{ announcement.message }}</span>
       </p>
-      <button class="shrink-0 text-sm text-uni-navy/60 hover:text-uni-navy" aria-label="Dismiss" @click="dismiss">&times;</button>
+      <button class="btn-icon h-8 w-8 text-navy-400" aria-label="Dismiss announcement" @click="dismiss">
+        <X class="h-4 w-4" />
+      </button>
     </div>
   </div>
 </template>

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref } from "vue";
+import { CircleAlert, MailCheck, UserPlus } from "@lucide/vue";
 import { useAuthStore } from "@/stores/auth";
 import { extractErrorMessage } from "@/lib/api";
+import AuthLayout from "@/components/AuthLayout.vue";
+import PasswordInput from "@/components/ui/PasswordInput.vue";
 
 const auth = useAuthStore();
-const router = useRouter();
 
 const studentNumber = ref("");
 const firstName = ref("");
@@ -15,6 +16,22 @@ const password = ref("");
 const error = ref("");
 const success = ref(false);
 const loading = ref(false);
+
+// A rough guide only - the backend's own minimum (8 characters) is what's actually enforced.
+const strength = computed(() => {
+  const p = password.value;
+  if (!p) return null;
+  let score = 0;
+  if (p.length >= 8) score++;
+  if (p.length >= 12) score++;
+  if (/[A-Z]/.test(p) && /[a-z]/.test(p)) score++;
+  if (/\d/.test(p)) score++;
+  if (/[^A-Za-z0-9]/.test(p)) score++;
+  if (p.length < 8) return { level: 1, label: "Too short", color: "bg-danger", text: "text-danger" };
+  if (score <= 2) return { level: 2, label: "Weak", color: "bg-warning", text: "text-warning" };
+  if (score <= 3) return { level: 3, label: "Good", color: "bg-teal-500", text: "text-teal-600" };
+  return { level: 4, label: "Strong", color: "bg-success", text: "text-success" };
+});
 
 async function submit() {
   loading.value = true;
@@ -37,42 +54,67 @@ async function submit() {
 </script>
 
 <template>
-  <section class="mx-auto max-w-sm">
-    <div v-if="success" class="card space-y-3">
-      <h1 class="font-display text-xl font-bold text-uni-navy">Check your account</h1>
-      <p class="text-sm text-charcoal">
-        We've created your account. In this MVP, the verification link is printed to the backend
-        console (no email provider is wired up yet) - open it there, then log in below.
-      </p>
-      <RouterLink to="/login" class="btn-primary inline-flex">Go to login</RouterLink>
+  <AuthLayout
+    v-if="success"
+    title="Check your inbox"
+    subtitle="Your account has been created. Verify your email address, then log in."
+  >
+    <div class="rounded-card border border-emerald-200 bg-emerald-50 p-5">
+      <div class="flex gap-3">
+        <MailCheck class="h-5 w-5 shrink-0 text-emerald-600" />
+        <p class="text-sm leading-relaxed text-emerald-900">
+          In this build no email provider is wired up yet, so the verification link is printed to the backend console. Open it
+          from there to activate your account.
+        </p>
+      </div>
     </div>
+    <RouterLink to="/login" class="btn-primary mt-6 w-full py-3">Go to login</RouterLink>
+  </AuthLayout>
 
-    <div v-else class="card space-y-4">
-      <h1 class="font-display text-xl font-bold text-uni-navy">Join UniLinkHub</h1>
-      <form class="space-y-3" @submit.prevent="submit">
-        <input v-model="studentNumber" required placeholder="Student number" class="input-field" />
-        <div class="flex gap-3">
-          <input v-model="firstName" required placeholder="First name" class="input-field" />
-          <input v-model="lastName" required placeholder="Last name" class="input-field" />
+  <AuthLayout v-else title="Join UniLinkHub" subtitle="Create your free student account to buy, sell and book services on campus.">
+    <form class="space-y-4" @submit.prevent="submit">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="reg-first" class="field-label">First name</label>
+          <input id="reg-first" v-model="firstName" required autocomplete="given-name" class="input-field" />
         </div>
-        <input v-model="email" type="email" required placeholder="Student email" class="input-field" />
-        <input
-          v-model="password"
-          type="password"
-          required
-          minlength="8"
-          placeholder="Password (min 8 characters)"
-          class="input-field"
-        />
-        <button type="submit" class="btn-primary w-full" :disabled="loading">
-          {{ loading ? "Creating account..." : "Create account" }}
-        </button>
-      </form>
-      <p v-if="error" class="text-sm text-danger">{{ error }}</p>
-      <p class="text-sm text-medium-grey">
-        Already have an account?
-        <RouterLink to="/login" class="text-campus-teal underline">Log in</RouterLink>
+        <div>
+          <label for="reg-last" class="field-label">Last name</label>
+          <input id="reg-last" v-model="lastName" required autocomplete="family-name" class="input-field" />
+        </div>
+      </div>
+      <div>
+        <label for="reg-student" class="field-label">Student number</label>
+        <input id="reg-student" v-model="studentNumber" required inputmode="numeric" placeholder="e.g. 222357614" class="input-field" />
+      </div>
+      <div>
+        <label for="reg-email" class="field-label">Student email</label>
+        <input id="reg-email" v-model="email" type="email" required autocomplete="email" placeholder="you@mycput.ac.za" class="input-field" />
+      </div>
+      <div>
+        <label for="reg-password" class="field-label">Password</label>
+        <PasswordInput id="reg-password" v-model="password" :minlength="8" autocomplete="new-password" placeholder="At least 8 characters" />
+        <div v-if="strength" class="mt-2 flex items-center gap-3">
+          <div class="grid flex-1 grid-cols-4 gap-1">
+            <span v-for="n in 4" :key="n" class="h-1 rounded-full transition" :class="n <= strength.level ? strength.color : 'bg-light-grey'"></span>
+          </div>
+          <span class="w-16 text-right text-xs font-semibold" :class="strength.text">{{ strength.label }}</span>
+        </div>
+      </div>
+
+      <p v-if="error" class="flex items-start gap-2 rounded-control border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-danger">
+        <CircleAlert class="mt-0.5 h-4 w-4 shrink-0" /> {{ error }}
       </p>
-    </div>
-  </section>
+
+      <button type="submit" class="btn-primary w-full py-3" :disabled="loading">
+        <span v-if="loading" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+        <UserPlus v-else class="h-4 w-4" />
+        {{ loading ? "Creating account…" : "Create account" }}
+      </button>
+    </form>
+
+    <p class="mt-8 text-center text-sm text-medium-grey">
+      Already have an account? <RouterLink to="/login" class="link">Log in</RouterLink>
+    </p>
+  </AuthLayout>
 </template>

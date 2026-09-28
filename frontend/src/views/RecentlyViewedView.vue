@@ -26,7 +26,7 @@ function clear() {
     <div v-if="recentlyViewed.length === 0" class="card text-sm text-medium-grey">
       Listings you open will show up here so you can find your way back to them.
     </div>
-    <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
       <ListingCard v-for="listing in recentlyViewed" :key="listing.id" :listing="listing" />
     </div>
   </section>

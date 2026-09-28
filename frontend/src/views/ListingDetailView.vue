@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
@@ -7,7 +7,27 @@ import { useSavedListingsStore } from "@/stores/savedListings";
 import { useCartStore } from "@/stores/cart";
 import { useToastStore } from "@/stores/toast";
 import { recordView } from "@/lib/recentlyViewed";
+import {
+  BadgeCheck,
+  Bell,
+  CalendarClock,
+  Check,
+  ChevronRight,
+  Clock3,
+  Copy,
+  Eye,
+  Flag,
+  Heart,
+  MessageCircle,
+  Package,
+  Share2,
+  ShoppingBag,
+  TicketPercent,
+  X,
+} from "@lucide/vue";
 import ListingCard from "@/components/ListingCard.vue";
+import { categoryMeta } from "@/lib/categoryMeta";
+import { formatPrice, initials, relativeTime } from "@/lib/format";
 import type { BusinessDTO, ListingDTO, PromoCodeDTO, QuestionView } from "@/lib/types";
 
 const route = useRoute();
@@ -39,10 +59,6 @@ async function copyShareLink() {
   } catch {
     // Clipboard access can be blocked (permissions, insecure context) - the link is still shown to copy manually.
   }
-}
-
-function formatPrice(price: number) {
-  return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(price);
 }
 
 function relativeDays(iso: string): string {
@@ -162,25 +178,6 @@ async function flagQuestion(id: string) {
   }
 }
 
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .map((part) => part.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-function relativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.round(diffMs / 60000);
-  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
-}
-
 // ---- Request a booking (services) ----
 const bookingOpen = ref(false);
 const bookingDate = ref("");
@@ -245,313 +242,365 @@ async function submitReport() {
   }
 }
 
+const imageFailed = ref(false);
+const meta = computed(() => categoryMeta(listing.value?.category));
+
+const discountedPrice = computed(() => {
+  const l = listing.value;
+  const promo = activePromo.value;
+  if (!l || !promo) return null;
+  return promo.discountType === "PERCENT"
+    ? l.price * (1 - promo.discountValue / 100)
+    : Math.max(l.price - promo.discountValue, 0);
+});
+
+const isOwnListing = computed(() => !!business.value && business.value.ownerId === auth.user?.id);
+
+const promoCopied = ref(false);
+async function copyPromo() {
+  if (!activePromo.value) return;
+  try {
+    await navigator.clipboard.writeText(activePromo.value.code);
+    promoCopied.value = true;
+    setTimeout(() => (promoCopied.value = false), 2000);
+  } catch {
+    // Clipboard blocked - the code is still visible to type in at checkout.
+  }
+}
+
 onMounted(load);
 </script>
 
 <template>
-  <section v-if="listing" class="mx-auto max-w-2xl space-y-4">
-    <div class="card overflow-hidden p-0">
-      <img v-if="listing.imageUrl" :src="listing.imageUrl" alt="" class="h-56 w-full object-cover" />
-      <div class="space-y-3 p-4">
-      <div class="flex items-start justify-between gap-2">
-        <h1 class="font-display text-2xl font-bold text-uni-navy">{{ listing.name }}</h1>
-        <div class="flex shrink-0 items-center gap-2">
-          <span v-if="listing.status === 'SOLD_OUT'" class="badge bg-medium-grey/15 text-medium-grey">Sold out</span>
-          <span v-else-if="listing.status === 'INACTIVE'" class="badge bg-danger/15 text-danger">Inactive</span>
-          <span class="badge bg-sky-blue/20 text-uni-navy">{{ listing.type }}</span>
-          <button
-            v-if="auth.isAuthenticated"
-            class="flex h-8 w-8 items-center justify-center rounded-full border border-light-grey"
-            :aria-label="saved.isSaved(listing.id) ? 'Unsave listing' : 'Save listing'"
-            @click="saved.toggleSave(listing)"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              :fill="saved.isSaved(listing.id) ? '#DC2626' : 'none'"
-              stroke="#DC2626"
-              stroke-width="2"
-            >
-              <path
-                d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"
-              />
-            </svg>
-          </button>
-          <div class="relative">
-            <button
-              class="flex h-8 w-8 items-center justify-center rounded-full border border-light-grey"
-              aria-label="Share listing"
-              @click="shareOpen = !shareOpen"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#163D72" stroke-width="2">
-                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
-              </svg>
-            </button>
+  <section v-if="listing" class="space-y-12">
+    <nav class="flex items-center gap-1.5 text-xs text-medium-grey" aria-label="Breadcrumb">
+      <RouterLink to="/" class="hover:text-uni-navy">Explore</RouterLink>
+      <ChevronRight class="h-3.5 w-3.5" />
+      <RouterLink :to="{ path: '/', query: { category: listing.category } }" class="hover:text-uni-navy">{{ listing.category }}</RouterLink>
+      <ChevronRight class="h-3.5 w-3.5" />
+      <span class="truncate font-medium text-charcoal">{{ listing.name }}</span>
+    </nav>
 
-            <div v-if="shareOpen" class="absolute right-0 top-[calc(100%+8px)] z-10 w-72 rounded-card border border-light-grey bg-white p-3 shadow-md">
-              <p class="mb-2 text-xs font-semibold text-medium-grey">Share this listing</p>
-              <div class="flex items-center gap-2 rounded-control border border-light-grey bg-soft-grey px-2.5 py-2">
-                <span class="flex-1 truncate text-xs text-charcoal">{{ shareUrl }}</span>
-                <button class="btn-primary px-2.5 py-1 text-xs" @click="copyShareLink">Copy</button>
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-10">
+      <!-- Media -->
+      <div class="relative overflow-hidden rounded-modal bg-soft-grey shadow-card ring-1 ring-light-grey/80 lg:col-start-1">
+        <img
+          v-if="listing.imageUrl && !imageFailed"
+          :src="listing.imageUrl"
+          :alt="listing.name"
+          class="aspect-[4/3] w-full object-cover"
+          @error="imageFailed = true"
+        />
+        <div v-else class="flex aspect-[4/3] w-full items-center justify-center" :style="{ background: meta.gradient }">
+          <component :is="meta.icon" class="h-24 w-24 text-navy-900/15" :stroke-width="1.25" />
+        </div>
+        <div class="absolute left-4 top-4 flex gap-2">
+          <span class="badge bg-white/90 py-1 text-navy-700 shadow-xs backdrop-blur">
+            <component :is="listing.type === 'PRODUCT' ? Package : CalendarClock" class="h-3.5 w-3.5" />
+            {{ listing.type === "PRODUCT" ? "Product" : "Service" }}
+          </span>
+          <span v-if="listing.status === 'SOLD_OUT'" class="badge bg-navy-900/85 py-1 text-white">Sold out</span>
+          <span v-else-if="listing.status === 'INACTIVE'" class="badge bg-danger py-1 text-white">Inactive</span>
+        </div>
+      </div>
+
+      <!-- Purchase panel (second on mobile, sticky right column on desktop) -->
+      <div class="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        <div class="space-y-4 lg:sticky lg:top-24">
+          <div class="card space-y-5 p-5 sm:p-6">
+            <div>
+              <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-medium-grey">
+                <span class="flex h-5 w-5 items-center justify-center rounded-md" :class="meta.tile"><component :is="meta.icon" class="h-3 w-3" /></span>
+                {{ listing.category }}
+              </p>
+              <h1 class="mt-2 font-display text-2xl font-bold leading-tight text-uni-navy sm:text-3xl">{{ listing.name }}</h1>
+              <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-medium-grey">
+                <span class="inline-flex items-center gap-1"><Eye class="h-3.5 w-3.5" /> {{ listing.viewCount }} views</span>
+                <span class="inline-flex items-center gap-1"><Heart class="h-3.5 w-3.5" /> {{ listing.savedCount }} saved</span>
+                <span class="inline-flex items-center gap-1"><Clock3 class="h-3.5 w-3.5" /> {{ relativeDays(listing.createdAt) }}</span>
               </div>
-              <p v-if="linkCopied" class="mt-1.5 text-xs font-medium text-success">Link copied to clipboard!</p>
             </div>
+
+            <div class="rounded-card bg-soft-grey/80 p-4">
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p class="font-display text-3xl font-bold" :class="discountedPrice !== null ? 'text-success' : 'text-uni-navy'">
+                  {{ formatPrice(discountedPrice ?? listing.price) }}
+                </p>
+                <p v-if="discountedPrice !== null" class="text-base text-medium-grey line-through">{{ formatPrice(listing.price) }}</p>
+              </div>
+              <button
+                v-if="activePromo"
+                class="mt-3 flex w-full items-center gap-2 rounded-control border border-dashed border-emerald-300 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-800 transition hover:bg-emerald-100"
+                @click="copyPromo"
+              >
+                <TicketPercent class="h-4 w-4 shrink-0" />
+                <span class="flex-1">
+                  <span class="font-bold">{{ activePromo.discountType === "PERCENT" ? `${activePromo.discountValue}% off` : `R${activePromo.discountValue} off` }}</span>
+                  with code <span class="font-mono font-bold">{{ activePromo.code }}</span>
+                </span>
+                <component :is="promoCopied ? Check : Copy" class="h-3.5 w-3.5 shrink-0" />
+              </button>
+              <p class="mt-3 text-sm text-charcoal">
+                <template v-if="listing.type === 'PRODUCT'">
+                  <span class="font-semibold">{{ listing.stockQuantity ?? "N/A" }}</span> in stock
+                </template>
+                <template v-else>
+                  <span v-if="listing.durationMinutes" class="font-semibold">{{ listing.durationMinutes }} min session · </span>
+                  {{ listing.availabilitySchedule ?? "Contact seller for availability" }}
+                </template>
+              </p>
+            </div>
+
+            <div class="space-y-2.5">
+              <template v-if="listing.status === 'ACTIVE' && !isOwnListing">
+                <template v-if="listing.type === 'SERVICE'">
+                  <button v-if="auth.isAuthenticated" class="btn-primary w-full py-3" @click="bookingOpen = true; bookingStatus = ''">
+                    <CalendarClock class="h-4 w-4" /> Request a booking
+                  </button>
+                  <RouterLink v-else :to="{ path: '/login', query: { redirect: $route.fullPath } }" class="btn-primary w-full py-3">Log in to book</RouterLink>
+                </template>
+                <template v-else>
+                  <button v-if="auth.isAuthenticated" class="btn-primary w-full py-3" @click="addToCart">
+                    <component :is="addedToCart ? Check : ShoppingBag" class="h-4 w-4" /> {{ addedToCart ? "Added to cart" : "Add to cart" }}
+                  </button>
+                  <RouterLink v-else :to="{ path: '/login', query: { redirect: $route.fullPath } }" class="btn-primary w-full py-3">Log in to buy</RouterLink>
+                </template>
+              </template>
+              <p v-if="isOwnListing" class="rounded-control bg-navy-50 px-3 py-2.5 text-center text-sm text-navy-700">This is your listing.</p>
+              <p v-if="bookingStatus" class="text-sm text-success">{{ bookingStatus }}</p>
+
+              <button
+                v-if="listing.type === 'PRODUCT' && listing.status === 'SOLD_OUT' && auth.isAuthenticated"
+                class="btn w-full border py-3"
+                :class="notifySubscribed ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-light-grey bg-white text-charcoal hover:bg-soft-grey'"
+                :disabled="notifyLoading"
+                @click="toggleNotifyMe"
+              >
+                <Bell class="h-4 w-4" /> {{ notifySubscribed ? "We'll notify you when it's back" : "Notify me when back in stock" }}
+              </button>
+
+              <div class="flex gap-2">
+                <button
+                  v-if="auth.isAuthenticated && business && !isOwnListing"
+                  class="btn-secondary flex-1"
+                  @click="messageOpen = true; messageStatus = ''; messageBody = ''"
+                >
+                  <MessageCircle class="h-4 w-4" /> <span class="max-[359px]:hidden">Message seller</span><span class="min-[360px]:hidden">Message</span>
+                </button>
+                <button
+                  v-if="auth.isAuthenticated"
+                  class="btn-secondary px-3"
+                  :aria-label="saved.isSaved(listing.id) ? 'Unsave listing' : 'Save listing'"
+                  :aria-pressed="saved.isSaved(listing.id)"
+                  @click="saved.toggleSave(listing)"
+                >
+                  <Heart class="h-4 w-4" :class="saved.isSaved(listing.id) ? 'fill-danger text-danger' : ''" />
+                </button>
+                <div class="relative">
+                  <button class="btn-secondary px-3" aria-label="Share listing" @click="shareOpen = !shareOpen">
+                    <Share2 class="h-4 w-4" />
+                  </button>
+                  <div v-if="shareOpen" class="absolute right-0 top-[calc(100%+8px)] z-20 w-72 animate-scale-in rounded-card border border-light-grey bg-white p-3 shadow-pop">
+                    <p class="mb-2 text-xs font-semibold text-medium-grey">Share this listing</p>
+                    <div class="flex items-center gap-2 rounded-control border border-light-grey bg-soft-grey px-2.5 py-1.5">
+                      <span class="flex-1 truncate text-xs text-charcoal">{{ shareUrl }}</span>
+                      <button class="btn-primary px-2.5 py-1 text-xs" @click="copyShareLink">{{ linkCopied ? "Copied" : "Copy" }}</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <RouterLink v-if="business" :to="`/providers/${business.id}`" class="group card card-interactive flex items-center gap-3.5 p-4">
+            <img v-if="business.imageUrl" :src="business.imageUrl" alt="" class="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-light-grey" />
+            <span v-else class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-display font-bold" :class="categoryMeta(business.category).tile">
+              {{ business.businessName.charAt(0) }}
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-medium-grey">Sold by</p>
+              <p class="flex items-center gap-1.5 truncate font-display text-sm font-semibold text-uni-navy">
+                {{ business.businessName }}
+                <BadgeCheck v-if="business.verificationStatus === 'VERIFIED'" class="h-4 w-4 shrink-0 text-emerald-500" />
+              </p>
+            </div>
+            <ChevronRight class="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" />
+          </RouterLink>
+
+          <div v-if="auth.isAuthenticated" class="px-1">
+            <button v-if="!reportOpen" class="inline-flex items-center gap-1.5 text-xs font-medium text-medium-grey hover:text-danger" @click="reportOpen = true">
+              <Flag class="h-3.5 w-3.5" /> Report this listing
+            </button>
+            <form v-else class="card space-y-3 p-4" @submit.prevent="submitReport">
+              <p class="text-sm font-semibold text-uni-navy">Report this listing</p>
+              <select v-model="reportReason" class="input-field">
+                <option value="MISREPRESENTATION">Misrepresentation</option>
+                <option value="NON_DELIVERY">Non-delivery</option>
+                <option value="INAPPROPRIATE_CONDUCT">Inappropriate conduct</option>
+                <option value="SPAM">Spam</option>
+                <option value="OTHER">Other</option>
+              </select>
+              <textarea v-model="reportDetails" class="input-field" rows="3" placeholder="Tell us what happened (optional)"></textarea>
+              <div class="flex gap-2">
+                <button type="button" class="btn-secondary flex-1" @click="reportOpen = false">Cancel</button>
+                <button type="submit" class="btn-danger flex-1">Submit report</button>
+              </div>
+            </form>
+            <p v-if="reportStatus" class="mt-2 text-xs text-medium-grey">{{ reportStatus }}</p>
           </div>
         </div>
       </div>
-      <p class="text-sm text-medium-grey">{{ listing.category }}</p>
-      <RouterLink
-        v-if="business"
-        :to="`/providers/${business.id}`"
-        class="inline-flex w-fit items-center gap-1.5 text-sm text-charcoal hover:text-campus-teal"
-      >
-        Sold by <span class="font-medium underline">{{ business.businessName }}</span>
-        <span v-if="business.verificationStatus === 'VERIFIED'" class="badge bg-success/15 text-success">Verified</span>
-      </RouterLink>
-      <p class="whitespace-pre-line text-charcoal">{{ listing.description }}</p>
 
-      <div v-if="activePromo" class="flex items-center gap-2">
-        <span class="badge bg-danger text-white">{{ activePromo.discountType === "PERCENT" ? `${activePromo.discountValue}% OFF` : `R${activePromo.discountValue} OFF` }} &middot; {{ activePromo.code }}</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <span v-if="activePromo" class="text-lg text-medium-grey line-through">{{ formatPrice(listing.price) }}</span>
-        <p
-          class="font-display text-2xl font-semibold"
-          :class="activePromo ? 'text-success' : 'text-campus-teal'"
-        >
-          {{ formatPrice(activePromo ? (activePromo.discountType === "PERCENT" ? listing.price * (1 - activePromo.discountValue / 100) : Math.max(listing.price - activePromo.discountValue, 0)) : listing.price) }}
-        </p>
-      </div>
+      <!-- Description + Q&A -->
+      <div class="space-y-6 lg:col-start-1">
+        <div class="card p-6">
+          <h2 class="section-title">About this {{ listing.type === "PRODUCT" ? "product" : "service" }}</h2>
+          <p class="mt-3 whitespace-pre-line leading-relaxed text-charcoal">{{ listing.description }}</p>
+        </div>
 
-      <dl v-if="listing.type === 'PRODUCT'" class="text-sm text-medium-grey">
-        <dt class="inline font-medium">In stock:</dt>
-        <dd class="inline"> {{ listing.stockQuantity ?? "N/A" }}</dd>
-      </dl>
-      <dl v-else class="text-sm text-medium-grey">
-        <dt class="inline font-medium">Availability:</dt>
-        <dd class="inline"> {{ listing.availabilitySchedule ?? "Contact seller" }}</dd>
-      </dl>
+        <div class="card space-y-5 p-6">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="section-title">Questions &amp; answers</h2>
+              <p class="mt-0.5 text-xs text-medium-grey">Questions and the seller's answers are visible to everyone.</p>
+            </div>
+            <span v-if="questions.length > 0" class="badge shrink-0 bg-soft-grey text-medium-grey">{{ questions.length }}</span>
+          </div>
 
-      <button
-        v-if="listing.type === 'SERVICE' && listing.status === 'ACTIVE' && auth.isAuthenticated"
-        class="btn-primary w-full text-sm"
-        @click="bookingOpen = true; bookingStatus = ''"
-      >
-        Request a booking
-      </button>
-      <RouterLink v-else-if="listing.type === 'SERVICE' && listing.status === 'ACTIVE'" to="/login" class="btn-secondary block w-full text-center text-sm">
-        Log in to request a booking
-      </RouterLink>
-      <p v-if="bookingStatus" class="text-sm text-success">{{ bookingStatus }}</p>
+          <div v-if="auth.isAuthenticated" class="rounded-card border border-light-grey p-3 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/15">
+            <textarea
+              v-model="questionDraft"
+              rows="2"
+              :maxlength="QUESTION_MAX_LENGTH"
+              class="w-full resize-none bg-transparent text-sm text-charcoal placeholder:text-slate-400 focus:outline-none"
+              placeholder="Ask a question about this listing…"
+            ></textarea>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-medium-grey">{{ questionDraft.length }} / {{ QUESTION_MAX_LENGTH }}</span>
+              <button class="btn-primary px-3.5 py-1.5 text-xs" :disabled="questionSubmitting || !questionDraft.trim()" @click="submitQuestion">
+                {{ questionSubmitting ? "Posting…" : "Post question" }}
+              </button>
+            </div>
+          </div>
+          <p v-else class="text-sm text-medium-grey">
+            <RouterLink :to="{ path: '/login', query: { redirect: $route.fullPath } }" class="link">Log in</RouterLink> to ask a question.
+          </p>
 
-      <button
-        v-if="listing.type === 'PRODUCT' && listing.status === 'ACTIVE' && auth.isAuthenticated"
-        class="btn-primary w-full text-sm"
-        @click="addToCart"
-      >
-        {{ addedToCart ? "Added to cart!" : "Add to cart" }}
-      </button>
-      <RouterLink v-else-if="listing.type === 'PRODUCT' && listing.status === 'ACTIVE'" to="/login" class="btn-secondary block w-full text-center text-sm">
-        Log in to add to cart
-      </RouterLink>
-
-      <button
-        v-if="auth.isAuthenticated && business && business.ownerId !== auth.user?.id"
-        class="btn-secondary flex w-full items-center justify-center gap-2 text-sm"
-        @click="messageOpen = true; messageStatus = ''; messageBody = ''"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" />
-        </svg>
-        Message {{ business.businessName }}
-      </button>
-
-      <template v-if="listing.type === 'PRODUCT' && listing.status === 'SOLD_OUT' && auth.isAuthenticated">
-        <button
-          class="inline-flex w-full items-center justify-center gap-2 rounded-control border-2 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
-          :class="notifySubscribed ? 'border-campus-teal bg-campus-teal/10 text-campus-teal' : 'border-light-grey text-charcoal'"
-          :disabled="notifyLoading"
-          @click="toggleNotifyMe"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
-          </svg>
-          {{ notifySubscribed ? "We'll notify you when back in stock" : "Notify me when back in stock" }}
-        </button>
-      </template>
-
-      <div class="flex flex-wrap items-center gap-4 border-t border-light-grey pt-3 text-xs text-medium-grey">
-        <span class="inline-flex items-center gap-1.5">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A94A6" stroke-width="2">
-            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" /><circle cx="12" cy="12" r="3" />
-          </svg>
-          {{ listing.viewCount }} views
-        </span>
-        <span class="inline-flex items-center gap-1.5">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#DC2626">
-            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" />
-          </svg>
-          {{ listing.savedCount }} student{{ listing.savedCount === 1 ? "" : "s" }} saved this
-        </span>
-        <span>{{ relativeDays(listing.createdAt) }}</span>
-      </div>
+          <p v-if="questions.length === 0" class="text-sm text-medium-grey">No questions yet - be the first to ask.</p>
+          <ul v-else class="space-y-5">
+            <li v-for="q in questions" :key="q.id" class="flex gap-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-navy-100 text-[11px] font-bold text-navy-700">
+                {{ initials(q.askerName) }}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-medium-grey"><span class="font-semibold text-charcoal">{{ q.askerName }}</span> · {{ relativeTime(q.createdAt) }}</p>
+                  <button
+                    v-if="auth.isAuthenticated && auth.user?.id !== q.askerId && !flaggedQuestionIds.has(q.id)"
+                    class="shrink-0 text-[11px] font-medium text-medium-grey hover:text-danger disabled:opacity-50"
+                    :disabled="flaggingQuestionId === q.id"
+                    @click="flagQuestion(q.id)"
+                  >
+                    Flag
+                  </button>
+                  <span v-else-if="flaggedQuestionIds.has(q.id)" class="shrink-0 text-[11px] font-medium text-medium-grey">Flagged</span>
+                </div>
+                <p class="mt-0.5 text-sm font-medium text-charcoal">{{ q.questionText }}</p>
+                <div v-if="q.answerText" class="mt-2.5 rounded-control border-l-2 border-teal-500 bg-teal-50/60 px-3.5 py-2.5">
+                  <p class="text-xs font-semibold text-uni-navy">
+                    {{ business?.businessName }} <span class="ml-1 rounded-full bg-uni-navy px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Seller</span>
+                    <span class="ml-1 font-normal text-medium-grey">· {{ relativeTime(q.answeredAt!) }}</span>
+                  </p>
+                  <p class="mt-1 text-sm text-charcoal">{{ q.answerText }}</p>
+                </div>
+                <span v-else class="badge mt-2 bg-amber-50 text-warning">Awaiting seller reply</span>
+              </div>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
     <!-- More from this seller -->
     <div v-if="business && moreFromSeller.length > 0">
-      <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">More from {{ business.businessName }}</h2>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <p class="eyebrow">From the same seller</p>
+          <h2 class="mt-1 font-display text-2xl font-bold text-uni-navy">More from {{ business.businessName }}</h2>
+        </div>
+        <RouterLink :to="`/providers/${business.id}`" class="link hidden text-sm sm:inline">View shop</RouterLink>
+      </div>
+      <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <ListingCard v-for="l in moreFromSeller" :key="l.id" :listing="l" />
       </div>
     </div>
 
-    <!-- Questions & answers -->
-    <div class="card space-y-3">
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="font-display text-lg font-semibold text-uni-navy">Questions &amp; answers</h2>
-          <p class="text-xs text-medium-grey">Ask the seller anything - your question and their answer are visible to everyone.</p>
-        </div>
-        <span v-if="questions.length > 0" class="badge bg-soft-grey text-medium-grey shrink-0">
-          {{ questions.length }} question{{ questions.length === 1 ? "" : "s" }}
-        </span>
-      </div>
-
-      <div v-if="auth.isAuthenticated" class="space-y-1">
-        <textarea
-          v-model="questionDraft"
-          rows="2"
-          :maxlength="QUESTION_MAX_LENGTH"
-          class="input-field resize-none"
-          placeholder="Ask a question about this listing..."
-        ></textarea>
-        <div class="flex items-center justify-between">
-          <span class="text-[11px] text-medium-grey">{{ questionDraft.length }} / {{ QUESTION_MAX_LENGTH }}</span>
-          <button class="btn-secondary shrink-0 text-sm" :disabled="questionSubmitting || !questionDraft.trim()" @click="submitQuestion">
-            {{ questionSubmitting ? "Posting..." : "Post question" }}
-          </button>
-        </div>
-      </div>
-      <p v-else class="text-sm text-medium-grey">
-        <RouterLink to="/login" class="text-campus-teal underline">Log in</RouterLink> to ask a question.
-      </p>
-
-      <p v-if="questions.length === 0" class="text-sm text-medium-grey">No questions yet - be the first to ask.</p>
-      <div v-else class="space-y-4 border-t border-light-grey pt-3">
-        <div v-for="q in questions" :key="q.id" class="flex gap-3">
-          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-blue text-[11px] font-semibold text-white">
-            {{ initials(q.askerName) }}
-          </div>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-sm text-charcoal"><span class="font-semibold">{{ q.askerName }}</span> asked &middot; {{ relativeTime(q.createdAt) }}</p>
-              <button
-                v-if="auth.isAuthenticated && auth.user?.id !== q.askerId && !flaggedQuestionIds.has(q.id)"
-                class="shrink-0 text-[11px] font-medium text-medium-grey hover:text-danger disabled:opacity-50"
-                :disabled="flaggingQuestionId === q.id"
-                @click="flagQuestion(q.id)"
-              >
-                Flag
-              </button>
-              <span v-else-if="flaggedQuestionIds.has(q.id)" class="shrink-0 text-[11px] font-medium text-medium-grey">Flagged</span>
-            </div>
-            <p class="text-sm text-charcoal">{{ q.questionText }}</p>
-            <div v-if="q.answerText" class="mt-2 flex gap-2 rounded-control bg-campus-teal/5 p-3">
-              <div class="flex-1">
-                <p class="text-xs font-semibold text-uni-navy">
-                  {{ business?.businessName }} <span class="ml-1 rounded-full bg-uni-navy/10 px-1.5 py-0.5 text-[10px] font-semibold">Seller</span>
-                  <span class="ml-1.5 font-normal text-medium-grey">&middot; {{ relativeTime(q.answeredAt!) }}</span>
-                </p>
-                <p class="mt-0.5 text-sm text-charcoal">{{ q.answerText }}</p>
-              </div>
-            </div>
-            <span v-else class="badge mt-1.5 bg-warning/15 text-warning">Awaiting seller reply</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="auth.isAuthenticated" class="card">
-      <button v-if="!reportOpen" class="btn-secondary text-sm" @click="reportOpen = true">
-        Report this listing
-      </button>
-      <form v-else class="space-y-3" @submit.prevent="submitReport">
-        <select v-model="reportReason" class="input-field">
-          <option value="MISREPRESENTATION">Misrepresentation</option>
-          <option value="NON_DELIVERY">Non-delivery</option>
-          <option value="INAPPROPRIATE_CONDUCT">Inappropriate conduct</option>
-          <option value="SPAM">Spam</option>
-          <option value="OTHER">Other</option>
-        </select>
-        <textarea
-          v-model="reportDetails"
-          class="input-field"
-          rows="3"
-          placeholder="Tell us what happened (optional)"
-        ></textarea>
-        <div class="flex gap-2">
-          <button type="submit" class="btn-primary text-sm">Submit report</button>
-          <button type="button" class="btn-secondary text-sm" @click="reportOpen = false">Cancel</button>
-        </div>
-      </form>
-      <p v-if="reportStatus" class="mt-2 text-sm text-medium-grey">{{ reportStatus }}</p>
-    </div>
-    <p v-else class="text-sm text-medium-grey">
-      <RouterLink to="/login" class="text-campus-teal underline">Log in</RouterLink> to report a listing.
-    </p>
-
-    <div v-if="bookingOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="bookingOpen = false">
-      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+    <!-- Booking modal -->
+    <div v-if="bookingOpen" class="modal-backdrop" @click.self="bookingOpen = false">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="booking-title">
         <div class="mb-1 flex items-center justify-between">
-          <h2 class="font-display text-base font-bold text-uni-navy">Request a booking</h2>
-          <button class="text-medium-grey" @click="bookingOpen = false">&times;</button>
+          <h2 id="booking-title" class="font-display text-lg font-bold text-uni-navy">Request a booking</h2>
+          <button class="btn-icon h-8 w-8" aria-label="Close" @click="bookingOpen = false"><X class="h-4 w-4" /></button>
         </div>
-        <p class="mb-4 text-xs text-medium-grey">
-          {{ business?.businessName }} will accept or decline - you'll get a notification either way.
-        </p>
+        <p class="mb-5 text-sm text-medium-grey">{{ business?.businessName }} will accept or decline - you'll get a notification either way.</p>
 
-        <label class="mb-1 block text-xs font-medium text-medium-grey">Preferred date</label>
-        <input v-model="bookingDate" type="date" class="input-field" :min="new Date().toISOString().slice(0, 10)" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="field-label" for="booking-date">Preferred date</label>
+            <input id="booking-date" v-model="bookingDate" type="date" class="input-field" :min="new Date().toISOString().slice(0, 10)" />
+          </div>
+          <div>
+            <label class="field-label" for="booking-time">Preferred time</label>
+            <input id="booking-time" v-model="bookingTime" type="time" class="input-field" />
+          </div>
+        </div>
+        <label class="field-label mt-4" for="booking-note">Note (optional)</label>
+        <textarea id="booking-note" v-model="bookingNote" class="input-field" rows="3" placeholder="Anything the seller should know…"></textarea>
 
-        <label class="mb-1 mt-3 block text-xs font-medium text-medium-grey">Preferred time</label>
-        <input v-model="bookingTime" type="time" class="input-field" />
-
-        <label class="mb-1 mt-3 block text-xs font-medium text-medium-grey">Note (optional)</label>
-        <textarea v-model="bookingNote" class="input-field" rows="3" placeholder="Anything the seller should know..."></textarea>
-
-        <div class="mt-4 flex gap-2">
-          <button class="btn-secondary flex-1 text-sm" @click="bookingOpen = false">Cancel</button>
-          <button class="btn-primary flex-1 text-sm" :disabled="bookingSubmitting || !bookingDate" @click="submitBooking">
-            {{ bookingSubmitting ? "Sending..." : "Send request" }}
+        <div class="mt-6 flex gap-2">
+          <button class="btn-secondary flex-1" @click="bookingOpen = false">Cancel</button>
+          <button class="btn-primary flex-1" :disabled="bookingSubmitting || !bookingDate" @click="submitBooking">
+            {{ bookingSubmitting ? "Sending…" : "Send request" }}
           </button>
         </div>
       </div>
     </div>
 
-    <div v-if="messageOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="messageOpen = false">
-      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+    <!-- Message modal -->
+    <div v-if="messageOpen" class="modal-backdrop" @click.self="messageOpen = false">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="message-title">
         <div class="mb-1 flex items-center justify-between">
-          <h2 class="font-display text-base font-bold text-uni-navy">Message {{ business?.businessName }}</h2>
-          <button class="text-medium-grey" @click="messageOpen = false">&times;</button>
+          <h2 id="message-title" class="font-display text-lg font-bold text-uni-navy">Message {{ business?.businessName }}</h2>
+          <button class="btn-icon h-8 w-8" aria-label="Close" @click="messageOpen = false"><X class="h-4 w-4" /></button>
         </div>
-        <p class="mb-3 text-xs text-medium-grey">About: {{ listing?.name }}</p>
+        <p class="mb-4 text-sm text-medium-grey">About: <span class="font-medium text-charcoal">{{ listing?.name }}</span></p>
 
-        <textarea v-model="messageBody" class="input-field resize-none" rows="4" placeholder="Hi! I'd like to ask about..."></textarea>
+        <textarea v-model="messageBody" class="input-field resize-none" rows="4" placeholder="Hi! I'd like to ask about…"></textarea>
         <p v-if="messageStatus" class="mt-2 text-sm text-danger">{{ messageStatus }}</p>
 
-        <div class="mt-4 flex gap-2">
-          <button class="btn-secondary flex-1 text-sm" @click="messageOpen = false">Cancel</button>
-          <button class="btn-primary flex-1 text-sm" :disabled="messageSending || !messageBody.trim()" @click="sendMessage">
-            {{ messageSending ? "Sending..." : "Send message" }}
+        <div class="mt-6 flex gap-2">
+          <button class="btn-secondary flex-1" @click="messageOpen = false">Cancel</button>
+          <button class="btn-primary flex-1" :disabled="messageSending || !messageBody.trim()" @click="sendMessage">
+            {{ messageSending ? "Sending…" : "Send message" }}
           </button>
         </div>
       </div>
     </div>
   </section>
 
-  <p v-else-if="error" class="text-sm text-danger">{{ error }}</p>
-  <p v-else class="text-sm text-medium-grey">Loading...</p>
+  <div v-else-if="error" class="mx-auto max-w-md py-16 text-center">
+    <p class="font-display text-lg font-semibold text-uni-navy">We couldn't load this listing</p>
+    <p class="mt-1 text-sm text-medium-grey">{{ error }}</p>
+    <RouterLink to="/" class="btn-secondary mt-5">Back to marketplace</RouterLink>
+  </div>
+
+  <div v-else class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-10" aria-busy="true">
+    <div class="skeleton aspect-[4/3] rounded-modal"></div>
+    <div class="card space-y-4 p-6">
+      <div class="skeleton h-3 w-24"></div>
+      <div class="skeleton h-8 w-3/4"></div>
+      <div class="skeleton h-24 w-full"></div>
+      <div class="skeleton h-12 w-full"></div>
+    </div>
+  </div>
 </template>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ArrowLeft, BadgeCheck, Flag, Mail, MessageCircle, Phone, UserCheck, UserPlus } from "@lucide/vue";
+import { categoryMeta } from "@/lib/categoryMeta";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
@@ -158,81 +160,89 @@ onMounted(load);
 
 <template>
   <section v-if="profile" class="space-y-5">
-    <RouterLink to="/" class="text-sm text-medium-grey hover:text-campus-teal">&larr; Back to browse</RouterLink>
+    <RouterLink to="/providers" class="inline-flex items-center gap-1.5 text-sm font-medium text-medium-grey hover:text-uni-navy"><ArrowLeft class="h-4 w-4" /> All providers</RouterLink>
 
-    <div class="card space-y-5">
+    <div class="card overflow-hidden p-0">
+      <div class="relative h-28 bg-hero sm:h-36">
+        <div class="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]"></div>
+      </div>
+      <div class="space-y-5 px-5 pb-6 sm:px-7">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div class="flex items-start gap-4">
-          <div
+        <div class="flex flex-col items-start gap-4 sm:flex-row">
+          <img
             v-if="profile.imageUrl"
-            class="h-16 w-16 shrink-0 rounded-full border border-light-grey bg-cover bg-center"
-            :style="{ backgroundImage: `url(${profile.imageUrl})` }"
-          ></div>
-          <div v-else class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-sky-blue/20 font-display text-xl font-bold text-uni-navy">
+            :src="profile.imageUrl"
+            alt=""
+            class="relative z-10 -mt-10 h-20 w-20 shrink-0 rounded-2xl bg-white object-cover shadow-lift ring-4 ring-white sm:-mt-12 sm:h-24 sm:w-24"
+          />
+          <div
+            v-else
+            class="relative z-10 -mt-10 flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl font-display text-2xl font-bold shadow-lift ring-4 ring-white sm:-mt-12 sm:h-24 sm:w-24"
+            :class="categoryMeta(profile.category).tile"
+          >
             {{ profile.businessName.charAt(0) }}
           </div>
 
-          <div>
+          <div class="sm:pt-4">
             <div class="mb-2 flex flex-wrap items-center gap-2">
               <h1 class="font-display text-2xl font-bold text-uni-navy sm:text-[26px]">{{ profile.businessName }}</h1>
               <span
                 v-if="profile.verificationStatus === 'VERIFIED'"
-                class="badge bg-success/15 text-success"
+                class="badge bg-emerald-50 text-emerald-700"
               >
-                Verified
+                <BadgeCheck class="h-3.5 w-3.5" /> Verified
               </span>
-              <span v-else class="badge bg-warning/15 text-warning">Pending verification</span>
-              <span class="badge bg-academic-gold/20 text-uni-navy">{{ profile.category }}</span>
+              <span v-else class="badge bg-amber-50 text-warning">Pending verification</span>
+              <span class="badge" :class="categoryMeta(profile.category).tile">{{ profile.category }}</span>
             </div>
             <p class="mb-3.5 text-sm text-medium-grey">Run by {{ profile.ownerFullName }}</p>
             <p class="max-w-xl text-sm leading-relaxed text-charcoal">{{ profile.description }}</p>
           </div>
         </div>
 
-        <div class="flex shrink-0 flex-wrap gap-2">
+        <div class="flex shrink-0 flex-wrap gap-2 sm:pt-4">
           <button
             v-if="auth.isAuthenticated"
-            class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-control border px-4 py-2 text-sm font-semibold"
-            :class="followed.isFollowing(profile.businessId)
-              ? 'border-campus-teal bg-campus-teal/10 text-campus-teal'
-              : 'border-uni-navy bg-white text-uni-navy hover:bg-soft-grey'"
+            :class="followed.isFollowing(profile.businessId) ? 'btn border border-teal-500 bg-teal-50 text-teal-700' : 'btn-primary'"
             @click="followed.toggleFollow(profile)"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" :fill="followed.isFollowing(profile.businessId) ? '#2A9BB4' : 'none'" stroke="currentColor" stroke-width="2">
-              <path d="M12 21s-8-4.5-8-10.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 4.5C20 16.5 12 21 12 21Z" />
-            </svg>
+            <component :is="followed.isFollowing(profile.businessId) ? UserCheck : UserPlus" class="h-4 w-4" />
             {{ followed.isFollowing(profile.businessId) ? "Following" : "Follow" }}
           </button>
           <button
             v-if="auth.isAuthenticated"
-            class="inline-flex items-center justify-center whitespace-nowrap rounded-control border border-uni-navy bg-white px-4 py-2 text-sm font-semibold text-uni-navy hover:bg-soft-grey"
+            class="btn-secondary"
             @click="openContact"
           >
+            <MessageCircle class="h-4 w-4" />
             Contact
           </button>
           <button
             v-if="auth.isAuthenticated && !reportOpen"
-            class="inline-flex items-center justify-center whitespace-nowrap rounded-control border border-danger bg-white px-4 py-2 text-sm font-semibold text-danger"
+            class="btn-ghost px-3 hover:text-danger"
+            aria-label="Report this provider"
+            title="Report this provider"
             @click="reportOpen = true"
           >
-            Report this provider
+            <Flag class="h-4 w-4" />
           </button>
         </div>
       </div>
 
       <div class="flex flex-wrap gap-7 border-t border-light-grey pt-4">
         <div>
-          <p class="font-display text-xl font-bold text-uni-navy">{{ profile.activeListingCount }}</p>
+          <p class="text-xl font-semibold text-charcoal">{{ profile.activeListingCount }}</p>
           <p class="text-xs text-medium-grey">Active listings</p>
         </div>
         <div>
-          <p class="font-display text-xl font-bold text-uni-navy">{{ profile.totalViews }}</p>
+          <p class="text-xl font-semibold text-charcoal">{{ profile.totalViews }}</p>
           <p class="text-xs text-medium-grey">Total views</p>
         </div>
         <div>
-          <p class="font-display text-xl font-bold text-uni-navy">{{ formatDate(profile.memberSince) }}</p>
+          <p class="text-xl font-semibold text-charcoal">{{ formatDate(profile.memberSince) }}</p>
           <p class="text-xs text-medium-grey">Member since</p>
-        </div>
+          </div>
+    </div>
       </div>
     </div>
 
@@ -259,14 +269,14 @@ onMounted(load);
     </div>
     <p v-if="reportStatus" class="text-sm text-medium-grey">{{ reportStatus }}</p>
     <p v-else-if="!auth.isAuthenticated" class="text-sm text-medium-grey">
-      <RouterLink to="/login" class="text-campus-teal underline">Log in</RouterLink> to report a provider.
+      <RouterLink to="/login" class="text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600">Log in</RouterLink> to report a provider.
     </p>
 
     <div>
       <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Listings from {{ profile.businessName }}</h2>
 
       <p v-if="listings.length === 0" class="card text-sm text-medium-grey">No active listings right now.</p>
-      <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
         <ListingCard v-for="listing in listings" :key="listing.id" :listing="listing" />
       </div>
     </div>
@@ -335,7 +345,7 @@ onMounted(load);
 
     <div v-if="similarBusinesses.length > 0">
       <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Similar businesses in {{ profile.category }}</h2>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
         <RouterLink
           v-for="b in similarBusinesses"
           :key="b.businessId"
@@ -369,21 +379,21 @@ onMounted(load);
           <div class="space-y-2">
             <div class="flex items-center justify-between rounded-control border border-light-grey bg-soft-grey px-3 py-2.5">
               <div class="flex items-center gap-2">
-                <span>✉️</span>
+                <Mail class="h-4 w-4 text-medium-grey" />
                 <span class="text-sm text-charcoal">{{ contact.email }}</span>
               </div>
               <button class="text-xs font-semibold text-campus-teal" @click="copyContact(contact.email)">Copy</button>
             </div>
             <div v-if="contact.phoneNumber" class="flex items-center justify-between rounded-control border border-light-grey bg-soft-grey px-3 py-2.5">
               <div class="flex items-center gap-2">
-                <span>📞</span>
+                <Phone class="h-4 w-4 text-medium-grey" />
                 <span class="text-sm text-charcoal">{{ contact.phoneNumber }}</span>
               </div>
               <button class="text-xs font-semibold text-campus-teal" @click="copyContact(contact.phoneNumber)">Copy</button>
             </div>
           </div>
-          <p class="mt-4 rounded-control bg-sky-blue/10 px-3 py-2 text-xs text-uni-navy">
-            💬 In-app messaging isn't available yet - for now, reach out directly.
+          <p class="mt-4 flex items-center gap-2 rounded-control bg-teal-50 px-3 py-2 text-xs text-navy-800">
+            <MessageCircle class="h-4 w-4 shrink-0 text-teal-600" /> You can also message them in-app from any of their listings.
           </p>
         </template>
         <p v-else class="text-sm text-medium-grey">Loading...</p>

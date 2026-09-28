@@ -47,7 +47,7 @@ async function placeOrder() {
     <h1 class="font-display text-2xl font-bold text-uni-navy">Checkout</h1>
 
     <div v-if="cart.lines.length === 0" class="card text-sm text-medium-grey">
-      Your cart is empty. <RouterLink to="/" class="text-campus-teal underline">Browse listings</RouterLink> to add something.
+      Your cart is empty. <RouterLink to="/" class="text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600">Browse listings</RouterLink> to add something.
     </div>
 
     <div v-else class="grid grid-cols-1 gap-6 lg:grid-cols-3">

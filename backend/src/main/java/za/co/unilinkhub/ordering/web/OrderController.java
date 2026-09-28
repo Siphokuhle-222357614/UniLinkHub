@@ -12,12 +12,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.ordering.application.CartLineItem;
 import za.co.unilinkhub.ordering.application.OrderDTO;
 import za.co.unilinkhub.ordering.application.OrderService;
 import za.co.unilinkhub.ordering.application.OrderStatsDTO;
+import za.co.unilinkhub.ordering.application.SellerAnalyticsDTO;
+import za.co.unilinkhub.ordering.application.SellerAnalyticsService;
 import za.co.unilinkhub.security.CurrentUser;
 
 import java.util.List;
@@ -28,6 +31,7 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderService orderService;
+    private final SellerAnalyticsService sellerAnalyticsService;
 
     public record ItemLine(@NotNull UUID listingId, @Positive int quantity) {
     }
@@ -54,6 +58,13 @@ public class OrderController {
     @GetMapping("/api/orders/seller")
     public List<OrderDTO> seller(@CurrentUser UUID sellerId) {
         return orderService.listForSeller(sellerId);
+    }
+
+    @GetMapping("/api/orders/seller/analytics")
+    public SellerAnalyticsDTO sellerAnalytics(@CurrentUser UUID sellerId,
+                                              @RequestParam(required = false) UUID businessId,
+                                              @RequestParam(defaultValue = "30") int days) {
+        return sellerAnalyticsService.compute(sellerId, businessId, days);
     }
 
     @PostMapping("/api/orders/{id}/confirm")

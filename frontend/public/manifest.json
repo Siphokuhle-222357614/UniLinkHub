@@ -1,0 +1,10 @@
+{
+  "name": "UniLinkHub",
+  "short_name": "UniLinkHub",
+  "description": "The campus marketplace for student entrepreneurs. Connect. Buy. Sell & Succeed.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F6FA",
+  "theme_color": "#163D72",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
