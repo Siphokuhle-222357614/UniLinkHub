@@ -2,12 +2,13 @@ spring:
   application:
     name: unilinkhub
   datasource:
-    # DB_URL lets a host that only gives you host/port/database (Railway, Render, etc.) be wired
-    # in without a code change - only the local XAMPP default lives in this file.
+    # Local default only. On Render, DB_URL MUST be set (see Step 3).
     url: ${DB_URL:jdbc:mysql://localhost:3306/unilinkhub?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${DB_USERNAME:unilinkhub}
     password: ${DB_PASSWORD:unilinkhub}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 30000
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,16 +16,15 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
+        # dialect line removed: Hibernate 6 auto-detects MySQL
 
 server:
-  # 8080 is taken by another local project on this machine - using 8081 to avoid clashing with it.
-  port: ${SERVER_PORT:8081}
+  # Render sets PORT. Locally, fall back to 8081 (8080 is used by your other project).
+  port: ${PORT:8081}
 
 unilinkhub:
   security:
     jwt:
-      # Override with a real 32+ byte secret via the JWT_SECRET env var before deploying anywhere.
       secret: ${JWT_SECRET:change-this-in-production-to-a-long-random-secret-at-least-32-bytes}
       expiration-ms: 86400000
 
