@@ -10,6 +10,7 @@ import {
   LogOut,
   MessageCircle,
   CircleQuestionMark,
+  Scale,
   Package,
   Receipt,
   Settings,
@@ -91,9 +92,11 @@ function logout() {
       </div>
 
       <nav class="max-h-[60vh] overflow-y-auto p-1.5">
-        <RouterLink v-for="l in buyerLinks" :key="l.to" :to="l.to" class="menu-item" role="menuitem">
-          <component :is="l.icon" class="h-4 w-4" /> {{ l.label }}
-        </RouterLink>
+        <template v-if="!auth.isAdmin">
+          <RouterLink v-for="l in buyerLinks" :key="l.to" :to="l.to" class="menu-item" role="menuitem">
+            <component :is="l.icon" class="h-4 w-4" /> {{ l.label }}
+          </RouterLink>
+        </template>
 
         <template v-if="auth.isSeller">
           <p class="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-medium-grey">Selling</p>
@@ -102,14 +105,17 @@ function logout() {
           </RouterLink>
         </template>
 
-        <div class="my-1.5 h-px bg-light-grey"></div>
+        <div v-if="!auth.isAdmin" class="my-1.5 h-px bg-light-grey"></div>
         <RouterLink v-if="auth.isAdmin" to="/admin" class="menu-item" role="menuitem">
           <ShieldCheck class="h-4 w-4 text-gold-600" /> Admin console
         </RouterLink>
         <RouterLink to="/account" class="menu-item" role="menuitem">
           <Settings class="h-4 w-4" /> Account settings
         </RouterLink>
-        <button class="menu-item w-full text-danger hover:!bg-red-50 hover:!text-danger" role="menuitem" @click="logout">
+        <RouterLink to="/marketplace-rules" class="menu-item" role="menuitem">
+          <Scale class="h-4 w-4" /> Marketplace rules
+        </RouterLink>
+        <button class="menu-item w-full !text-danger hover:!bg-red-50" role="menuitem" @click="logout">
           <LogOut class="h-4 w-4" /> Log out
         </button>
       </nav>

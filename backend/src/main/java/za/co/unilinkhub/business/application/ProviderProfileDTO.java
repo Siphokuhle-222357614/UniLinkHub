@@ -19,6 +19,9 @@ public record ProviderProfileDTO(
         String ownerFullName,
         long activeListingCount,
         long totalViews,
-        LocalDateTime memberSince
+        LocalDateTime memberSince,
+        String campus,
+        String campusLabel,
+        String pickupLocation
 ) {
 }

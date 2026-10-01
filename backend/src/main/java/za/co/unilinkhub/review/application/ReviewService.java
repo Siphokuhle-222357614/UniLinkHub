@@ -4,8 +4,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.business.domain.Business;
+import za.co.unilinkhub.booking.domain.BookingStatus;
+import za.co.unilinkhub.booking.repository.BookingRepository;
 import za.co.unilinkhub.business.repository.BusinessRepository;
+import za.co.unilinkhub.ordering.domain.OrderStatus;
+import za.co.unilinkhub.ordering.repository.OrderRepository;
 import za.co.unilinkhub.common.exception.BadRequestException;
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.notification.application.NotificationService;
 import za.co.unilinkhub.review.domain.Review;
@@ -24,6 +29,8 @@ import java.util.stream.Collectors;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
+    private final OrderRepository orderRepository;
+    private final BookingRepository bookingRepository;
     private final BusinessRepository businessRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
@@ -31,10 +38,17 @@ public class ReviewService {
 
     public ReviewView upsert(UUID reviewerId, UUID businessId, int rating, String comment) {
         if (rating < 1 || rating > 5) {
-            throw new BadRequestException("Rating must be between 1 and 5");
+            throw new BadRequestException("Please choose a rating from 1 to 5 stars.");
         }
         Business business = businessRepository.findById(businessId)
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
+        if (business.getOwnerId().equals(reviewerId)) {
+            throw new ForbiddenException("You can't review your own business. Reviews only count when they come from customers.");
+        }
+        if (!hasBoughtFrom(reviewerId, businessId)) {
+            throw new ForbiddenException("You can only review a business after buying from it (a completed order) or having a "
+                    + "booking accepted. This keeps reviews honest and stops fake ratings.");
+        }
 
         Review review = reviewRepository.findByBusinessIdAndReviewerId(businessId, reviewerId).orElse(null);
         boolean isNew = review == null;
@@ -55,6 +69,13 @@ public class ReviewService {
         return toView(saved);
     }
 
+    private boolean hasBoughtFrom(UUID buyerId, UUID businessId) {
+        boolean completedOrder = orderRepository.findByBuyerId(buyerId).stream()
+                .anyMatch(o -> o.getBusinessId().equals(businessId) && o.getStatus() == OrderStatus.COMPLETED);
+        return completedOrder || bookingRepository.findByBuyerId(buyerId).stream()
+                .anyMatch(b -> b.getBusinessId().equals(businessId) && b.getStatus() == BookingStatus.ACCEPTED);
+    }
+
     public BusinessReviewsDTO listForBusiness(UUID businessId) {
         List<Review> reviews = reviewRepository.findByBusinessId(businessId).stream()
                 .sorted(Comparator.comparing(Review::getCreatedAt).reversed())
@@ -70,7 +91,7 @@ public class ReviewService {
 
     public void flag(UUID reviewId) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that review. It may have been removed."));
         review.flag();
         reviewRepository.save(review);
     }
@@ -85,7 +106,7 @@ public class ReviewService {
 
     public void adminRemove(UUID reviewId, UUID adminId) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that review. It may have been removed."));
         String businessName = businessRepository.findById(review.getBusinessId())
                 .map(Business::getBusinessName).orElse("Unknown business");
         reviewRepository.deleteById(reviewId);

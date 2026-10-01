@@ -2,6 +2,7 @@ package za.co.unilinkhub.user.repository;
 
 import za.co.unilinkhub.user.domain.AccountStatus;
 import za.co.unilinkhub.user.domain.User;
+import za.co.unilinkhub.user.domain.UserRole;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,8 @@ public interface UserRepository {
     List<User> findByAccountStatus(AccountStatus accountStatus);
 
     List<User> findAll();
+
+    List<User> findByRole(UserRole role);
 
     long countAll();
 

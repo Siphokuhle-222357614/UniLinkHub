@@ -31,7 +31,14 @@ function browse() {
         <div v-if="cart.open" class="fixed inset-0 z-40 bg-navy-950/40 backdrop-blur-sm" @click="cart.open = false"></div>
       </Transition>
       <Transition name="drawer">
-        <aside v-if="cart.open" class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-pop">
+        <aside
+          v-if="cart.open"
+          v-dialog="() => (cart.open = false)"
+          class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-pop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Your cart"
+        >
           <div class="flex items-center justify-between border-b border-light-grey px-6 py-5">
             <div>
               <h2 class="font-display text-lg font-bold text-uni-navy">Your cart</h2>

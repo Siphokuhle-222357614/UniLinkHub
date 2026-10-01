@@ -1,11 +1,11 @@
 package za.co.unilinkhub.promo.application;
 
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 import za.co.unilinkhub.promo.domain.DiscountType;
@@ -114,16 +114,16 @@ public class PromoCodeService {
 
     private PromoCode findOwned(UUID promoCodeId, UUID sellerId) {
         PromoCode promoCode = promoCodeRepository.findById(promoCodeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Promo code not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that promo code."));
         assertOwnership(promoCode.getBusinessId(), sellerId);
         return promoCode;
     }
 
     private void assertOwnership(UUID businessId, UUID sellerId) {
         Business business = businessRepository.findById(businessId)
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
         if (!business.getOwnerId().equals(sellerId)) {
-            throw new UnauthorizedException("You do not own this business");
+            throw new ForbiddenException("Only the owner of this business can do this. You can only manage businesses you created yourself.");
         }
     }
 

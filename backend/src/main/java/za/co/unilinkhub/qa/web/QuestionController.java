@@ -17,6 +17,7 @@ import za.co.unilinkhub.qa.application.QuestionService;
 import za.co.unilinkhub.qa.application.QuestionStatsDTO;
 import za.co.unilinkhub.qa.application.QuestionView;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,7 @@ public class QuestionController {
     public record AnswerRequest(@NotBlank String answerText) {
     }
 
+    @StudentOnly("ask questions on listings")
     @PostMapping("/api/listings/{id}/questions")
     @ResponseStatus(HttpStatus.CREATED)
     public QuestionView ask(@CurrentUser UUID askerId, @PathVariable UUID id, @Valid @RequestBody AskRequest request) {

@@ -159,12 +159,13 @@ async function duplicateListing(listing: ListingDTO) {
       description: listing.description,
       category: listing.category,
       price: listing.price,
+      // Only photos uploaded to UniLinkHub can be reused - older listings may have links to other sites.
+      imageUrl: listing.imageUrl?.startsWith("/api/images/") ? listing.imageUrl : null,
     };
     const { data: created } = listing.type === "PRODUCT"
       ? await api.post<ListingDTO>("/listings/products", {
           ...payload,
           stockQuantity: listing.stockQuantity,
-          imageUrl: listing.imageUrl,
         })
       : await api.post<ListingDTO>("/listings/services", {
           ...payload,
@@ -251,7 +252,10 @@ onMounted(load);
               <td class="px-2 py-3 font-medium text-charcoal">{{ l.name }}</td>
               <td class="px-2 py-3 text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</td>
               <td class="px-2 py-3 font-medium text-campus-teal">{{ formatPrice(l.price) }}</td>
-              <td class="px-2 py-3"><span class="badge" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span></td>
+              <td class="px-2 py-3">
+                <span v-if="l.takenDownAt" class="badge bg-red-50 text-danger" :title="`Removed by an admin: ${l.takedownReason}`">Removed by admin</span>
+                <span v-else class="badge" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span>
+              </td>
               <td class="px-2 py-3 text-medium-grey">{{ l.viewCount }}</td>
               <td class="relative px-4 py-3 text-right">
                 <button class="px-1 text-medium-grey hover:text-charcoal" :disabled="duplicatingId === l.id" @click="toggleMenu(l.id)">
@@ -272,7 +276,7 @@ onMounted(load);
                   </RouterLink>
                   <button class="block w-full px-3 py-1.5 text-left text-sm font-semibold text-campus-teal hover:bg-campus-teal/10" @click="duplicateListing(l)">Duplicate</button>
                   <button
-                    v-if="l.status !== 'SOLD_OUT'"
+                    v-if="l.status !== 'SOLD_OUT' && !l.takenDownAt"
                     class="block w-full px-3 py-1.5 text-left text-sm text-charcoal hover:bg-soft-grey"
                     @click="toggleStatus(l)"
                   >
@@ -297,7 +301,8 @@ onMounted(load);
                 <span class="block truncate text-xs text-medium-grey">{{ businessNameById[l.businessId] ?? "-" }}</span>
               </span>
             </label>
-            <span class="badge shrink-0" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span>
+            <span v-if="l.takenDownAt" class="badge shrink-0 bg-red-50 text-danger">Removed by admin</span>
+            <span v-else class="badge shrink-0" :class="STATUS_STYLES[l.status]">{{ STATUS_LABELS[l.status] }}</span>
           </div>
           <div class="mt-2 flex items-center justify-between text-sm">
             <span class="font-semibold text-campus-teal">{{ formatPrice(l.price) }}</span>
@@ -309,7 +314,7 @@ onMounted(load);
             <button class="text-xs font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600 disabled:opacity-50" :disabled="duplicatingId === l.id" @click="duplicateListing(l)">
               {{ duplicatingId === l.id ? "Duplicating..." : "Duplicate" }}
             </button>
-            <button v-if="l.status !== 'SOLD_OUT'" class="text-xs font-medium text-charcoal underline" @click="toggleStatus(l)">
+            <button v-if="l.status !== 'SOLD_OUT' && !l.takenDownAt" class="text-xs font-medium text-charcoal underline" @click="toggleStatus(l)">
               {{ l.status === "ACTIVE" ? "Deactivate" : "Reactivate" }}
             </button>
           </div>

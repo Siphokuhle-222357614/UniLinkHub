@@ -15,6 +15,7 @@ import za.co.unilinkhub.booking.application.BookingService;
 import za.co.unilinkhub.booking.application.BookingStatsDTO;
 import za.co.unilinkhub.booking.application.BookingSummaryView;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +33,7 @@ public class BookingController {
     public record DeclineRequest(String reason) {
     }
 
+    @StudentOnly("book services")
     @PostMapping("/api/bookings")
     @ResponseStatus(HttpStatus.CREATED)
     public BookingSummaryView request(@CurrentUser UUID buyerId, @Valid @RequestBody RequestBookingRequest request) {

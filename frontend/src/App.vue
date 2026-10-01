@@ -8,8 +8,10 @@ import ToastContainer from "@/components/ToastContainer.vue";
 import CommandPalette from "@/components/CommandPalette.vue";
 import MobileTabBar from "@/components/MobileTabBar.vue";
 import AppFooter from "@/components/AppFooter.vue";
+import { useRealtimeSync } from "@/composables/useRealtimeSync";
 
 const route = useRoute();
+useRealtimeSync();
 
 // "bare" routes (auth screens, the admin console) bring their own full-screen chrome.
 const bare = computed(() => route.meta.layout === "bare");
@@ -23,7 +25,7 @@ const bare = computed(() => route.meta.layout === "bare");
   <div v-else class="flex min-h-screen flex-col">
     <NavBar />
     <AnnouncementBanner />
-    <main class="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pt-8 md:pb-12">
+    <main class="mx-auto w-full max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1600px] flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pt-8 md:pb-12">
       <RouterView v-slot="{ Component, route: r }">
         <Transition name="page" mode="out-in">
           <!-- Keyed by path so /listings/a -> /listings/b remounts and reloads the view. -->
@@ -33,7 +35,7 @@ const bare = computed(() => route.meta.layout === "bare");
         </Transition>
       </RouterView>
     </main>
-    <div class="pb-16 md:pb-0">
+    <div v-if="!route.meta.hideFooter" class="pb-16 md:pb-0">
       <AppFooter />
     </div>
     <CompareTray />

@@ -19,10 +19,10 @@ public class DeactivateAccountUseCase {
 
     public void execute(UUID userId, String currentPassword) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that account."));
 
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
-            throw new BadRequestException("Current password is incorrect");
+            throw new BadRequestException("Your current password isn't right. We ask for it to make sure it's really you - please check it and try again.");
         }
 
         user.deactivate();

@@ -1,6 +1,7 @@
 package za.co.unilinkhub.business.domain;
 
 import jakarta.persistence.Column;
+import za.co.unilinkhub.shared.domain.Campus;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -52,6 +53,15 @@ public class Business {
     @Column(name = "rejection_reason", length = 1000)
     private String rejectionReason;
 
+    /** Which CPUT campus buyers collect from. Null only for businesses created before campuses were recorded. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Campus campus;
+
+    /** Where exactly to collect, e.g. "Catsville residence, Block C". */
+    @Column(name = "pickup_location", length = 120)
+    private String pickupLocation;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -67,8 +77,21 @@ public class Business {
         this.category = category;
     }
 
-    public static Business create(UUID ownerId, String businessName, String description, String category) {
-        return new Business(ownerId, businessName, description, category);
+    public static Business create(UUID ownerId, String businessName, String description, String category,
+                                  Campus campus, String pickupLocation) {
+        Business business = new Business(ownerId, businessName, description, category);
+        business.campus = campus;
+        business.pickupLocation = pickupLocation;
+        return business;
+    }
+
+    public void updateLocation(Campus campus, String pickupLocation) {
+        if (campus != null) {
+            this.campus = campus;
+        }
+        if (pickupLocation != null) {
+            this.pickupLocation = pickupLocation.isBlank() ? null : pickupLocation.trim();
+        }
     }
 
     public void updateDetails(String businessName, String description, String category, String imageUrl) {
@@ -88,7 +111,7 @@ public class Business {
 
     public void requestVerification() {
         if (this.verificationStatus == VerificationStatus.VERIFIED) {
-            throw new IllegalStateException("Business is already verified");
+            throw new IllegalStateException("This business is already verified, so there's nothing more to do.");
         }
         this.verificationStatus = VerificationStatus.PENDING;
         this.rejectionReason = null;

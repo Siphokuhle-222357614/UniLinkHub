@@ -37,7 +37,7 @@ public class AnnouncementService {
 
     public AnnouncementDTO deactivate(UUID adminId, UUID id) {
         Announcement announcement = announcementRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Announcement not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that announcement. It may have been removed."));
         announcement.deactivate();
         Announcement saved = announcementRepository.save(announcement);
         String adminName = userService.getById(adminId).firstName() + " " + userService.getById(adminId).lastName();

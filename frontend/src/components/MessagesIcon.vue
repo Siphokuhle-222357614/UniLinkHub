@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { MessageCircle } from "@lucide/vue";
 import { useMessagesStore } from "@/stores/messages";
 import { useClickOutside } from "@/composables/useClickOutside";
+import { realtimeConnected } from "@/lib/realtime";
 import { initials, relativeTime } from "@/lib/format";
 
 const router = useRouter();
@@ -33,7 +34,10 @@ function viewAll() {
 
 onMounted(() => {
   messages.fetchUnreadCount();
-  pollHandle = setInterval(() => messages.fetchUnreadCount(), 30000);
+  // Live updates arrive over the realtime stream; polling is only the fallback when it's down.
+  pollHandle = setInterval(() => {
+    if (!realtimeConnected.value) messages.fetchUnreadCount();
+  }, 30000);
 });
 
 onUnmounted(() => {

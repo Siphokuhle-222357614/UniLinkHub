@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { ArrowRight, BadgeCheck, Eye, Search, SearchX, ShieldCheck } from "@lucide/vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import { categoryMeta } from "@/lib/categoryMeta";
+import { useCampuses } from "@/lib/campuses";
 import EmptyState from "@/components/ui/EmptyState.vue";
 import { useCategories } from "@/lib/categories";
 import type { ProviderProfileDTO } from "@/lib/types";
@@ -12,6 +13,8 @@ const categories = useCategories();
 const keyword = ref("");
 const category = ref("");
 const verifiedOnly = ref(false);
+const campus = ref("");
+const campuses = useCampuses();
 const loading = ref(false);
 const error = ref("");
 
@@ -26,6 +29,7 @@ async function search() {
         keyword: keyword.value || undefined,
         category: category.value || undefined,
         verifiedOnly: verifiedOnly.value || undefined,
+        campus: campus.value || undefined,
       },
     });
     businesses.value = data;
@@ -40,7 +44,7 @@ const resultsLabel = computed(() =>
   businesses.value.length === 1 ? "1 business found" : `${businesses.value.length} businesses found`,
 );
 
-watch([keyword, category, verifiedOnly], () => {
+watch([keyword, category, verifiedOnly, campus], () => {
   clearTimeout(debounceHandle);
   debounceHandle = setTimeout(search, 250);
 });
@@ -70,6 +74,10 @@ onMounted(search);
         <option value="">All categories</option>
         <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
       </select>
+      <select v-model="campus" class="input-field sm:max-w-[12rem]" aria-label="Campus">
+        <option value="">All campuses</option>
+        <option v-for="c in campuses" :key="c.key" :value="c.key">{{ c.label }}</option>
+      </select>
       <button class="chip py-2.5" :class="{ 'chip-active': verifiedOnly }" :aria-pressed="verifiedOnly" @click="verifiedOnly = !verifiedOnly">
         <ShieldCheck class="h-4 w-4" /> Verified only
       </button>
@@ -78,13 +86,13 @@ onMounted(search);
 
     <p v-if="error" class="rounded-control border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">{{ error }}</p>
 
-    <div v-else-if="loading" class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    <div v-else-if="loading" class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4">
       <div v-for="n in 6" :key="n" class="skeleton h-44 rounded-card"></div>
     </div>
 
     <EmptyState v-else-if="businesses.length === 0" :icon="SearchX" title="No businesses match your search" description="Try another keyword or category." />
 
-    <div v-else class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    <div v-else class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 3xl:grid-cols-4">
       <RouterLink v-for="b in businesses" :key="b.businessId" :to="`/providers/${b.businessId}`" class="group card card-interactive flex flex-col">
         <div class="flex items-start gap-3.5">
           <img v-if="b.imageUrl" :src="b.imageUrl" alt="" class="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-light-grey" />
@@ -96,8 +104,11 @@ onMounted(search);
               <span class="truncate">{{ b.businessName }}</span>
               <BadgeCheck v-if="b.verificationStatus === 'VERIFIED'" class="h-4 w-4 shrink-0 text-emerald-500" aria-label="Verified" />
             </h3>
-            <p class="mt-0.5 flex items-center gap-1.5 text-xs text-medium-grey">
-              <component :is="categoryMeta(b.category).icon" class="h-3.5 w-3.5" /> {{ b.category }}
+            <p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-medium-grey">
+              <span class="inline-flex min-w-0 items-center gap-1.5">
+                <component :is="categoryMeta(b.category).icon" class="h-3.5 w-3.5 shrink-0" />
+                <span>{{ b.category }}<template v-if="b.campusLabel"> · {{ b.campusLabel }}</template></span>
+              </span>
               <span v-if="b.verificationStatus !== 'VERIFIED'" class="badge bg-amber-50 text-warning">Pending verification</span>
             </p>
           </div>

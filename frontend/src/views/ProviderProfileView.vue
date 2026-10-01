@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ArrowLeft, BadgeCheck, Flag, Mail, MessageCircle, Phone, UserCheck, UserPlus } from "@lucide/vue";
+import { ArrowLeft, BadgeCheck, Flag, Mail, MapPin, MessageCircle, Phone, UserCheck, UserPlus } from "@lucide/vue";
+import SellerTrustBadges from "@/components/SellerTrustBadges.vue";
 import { categoryMeta } from "@/lib/categoryMeta";
+import { REPORT_REASONS } from "@/lib/reports";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
@@ -8,7 +10,8 @@ import { useAuthStore } from "@/stores/auth";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { useToastStore } from "@/stores/toast";
 import ListingCard from "@/components/ListingCard.vue";
-import type { BusinessContactDTO, BusinessReviewsDTO, ListingDTO, ProviderProfileDTO } from "@/lib/types";
+import BusinessPostsFeed from "@/components/posts/BusinessPostsFeed.vue";
+import type { BusinessContactDTO, BusinessReviewsDTO, ListingDTO, ProviderProfileDTO, ReportReason, SellerTrust } from "@/lib/types";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -18,9 +21,27 @@ const toast = useToastStore();
 const profile = ref<ProviderProfileDTO | null>(null);
 const listings = ref<ListingDTO[]>([]);
 const similarBusinesses = ref<ProviderProfileDTO[]>([]);
+const trust = ref<SellerTrust | null>(null);
+
+// ---- Page tabs ----
+type PageTab = "posts" | "listings" | "reviews";
+const PAGE_TABS: { key: PageTab; label: string }[] = [
+  { key: "posts", label: "Posts" },
+  { key: "listings", label: "Listings" },
+  { key: "reviews", label: "Reviews" },
+];
+// A shared post link opens straight on Posts; otherwise Posts is still the default, like a Facebook page.
+const pageTab = ref<PageTab>("posts");
+const postCount = ref<number | null>(null);
+
+function tabCount(tab: PageTab): number | null {
+  if (tab === "posts") return postCount.value;
+  if (tab === "listings") return listings.value.length;
+  return reviewsData.value?.total ?? null;
+}
 const error = ref("");
 const reportOpen = ref(false);
-const reportReason = ref("MISREPRESENTATION");
+const reportReason = ref<ReportReason>("PROHIBITED_ITEM");
 const reportDetails = ref("");
 const reportStatus = ref("");
 
@@ -128,6 +149,7 @@ async function load() {
     profile.value = profileRes.data;
     listings.value = listingsRes.data.filter((l) => l.status === "ACTIVE");
 
+    api.get<SellerTrust>(`/businesses/${businessId}/trust`).then(({ data }) => (trust.value = data)).catch(() => {});
     const { data: similar } = await api.get<ProviderProfileDTO[]>(`/businesses/${businessId}/similar`);
     similarBusinesses.value = similar;
 
@@ -195,14 +217,20 @@ onMounted(load);
               <span v-else class="badge bg-amber-50 text-warning">Pending verification</span>
               <span class="badge" :class="categoryMeta(profile.category).tile">{{ profile.category }}</span>
             </div>
-            <p class="mb-3.5 text-sm text-medium-grey">Run by {{ profile.ownerFullName }}</p>
+            <p class="text-sm text-medium-grey">Run by {{ profile.ownerFullName }}</p>
+            <p v-if="profile.campusLabel" class="mt-1 flex items-center gap-1.5 text-sm text-charcoal">
+              <MapPin class="h-4 w-4 shrink-0 text-teal-600" />
+              Collect at {{ profile.pickupLocation ? `${profile.pickupLocation}, ` : "" }}{{ profile.campusLabel }} campus
+            </p>
+            <SellerTrustBadges v-if="trust" :trust="trust" class="mb-3.5 mt-3" />
+            <div v-else class="mb-3.5"></div>
             <p class="max-w-xl text-sm leading-relaxed text-charcoal">{{ profile.description }}</p>
           </div>
         </div>
 
         <div class="flex shrink-0 flex-wrap gap-2 sm:pt-4">
           <button
-            v-if="auth.isAuthenticated"
+            v-if="auth.isAuthenticated && !auth.isAdmin && profile.ownerId !== auth.user?.id"
             :class="followed.isFollowing(profile.businessId) ? 'btn border border-teal-500 bg-teal-50 text-teal-700' : 'btn-primary'"
             @click="followed.toggleFollow(profile)"
           >
@@ -210,7 +238,7 @@ onMounted(load);
             {{ followed.isFollowing(profile.businessId) ? "Following" : "Follow" }}
           </button>
           <button
-            v-if="auth.isAuthenticated"
+            v-if="auth.isAuthenticated && profile.ownerId !== auth.user?.id"
             class="btn-secondary"
             @click="openContact"
           >
@@ -218,7 +246,7 @@ onMounted(load);
             Contact
           </button>
           <button
-            v-if="auth.isAuthenticated && !reportOpen"
+            v-if="auth.isAuthenticated && !auth.isAdmin && !reportOpen"
             class="btn-ghost px-3 hover:text-danger"
             aria-label="Report this provider"
             title="Report this provider"
@@ -249,11 +277,7 @@ onMounted(load);
     <div v-if="reportOpen" class="card space-y-3">
       <form class="space-y-3" @submit.prevent="submitReport">
         <select v-model="reportReason" class="input-field">
-          <option value="MISREPRESENTATION">Misrepresentation</option>
-          <option value="NON_DELIVERY">Non-delivery</option>
-          <option value="INAPPROPRIATE_CONDUCT">Inappropriate conduct</option>
-          <option value="SPAM">Spam</option>
-          <option value="OTHER">Other</option>
+          <option v-for="r in REPORT_REASONS" :key="r.value" :value="r.value">{{ r.label }}</option>
         </select>
         <textarea
           v-model="reportDetails"
@@ -272,7 +296,36 @@ onMounted(load);
       <RouterLink to="/login" class="text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600">Log in</RouterLink> to report a provider.
     </p>
 
-    <div>
+    <!-- Facebook-style page tabs: posts first, because that's what's new. -->
+    <div class="sticky top-16 z-20 -mx-4 border-b border-light-grey bg-soft-grey/90 px-4 backdrop-blur sm:mx-0 sm:rounded-control sm:border sm:bg-white sm:px-1.5 sm:py-1.5" role="tablist" aria-label="Business page sections">
+      <div class="flex gap-1">
+        <button
+          v-for="t in PAGE_TABS"
+          :key="t.key"
+          role="tab"
+          :aria-selected="pageTab === t.key"
+          class="flex-1 border-b-2 px-3 py-3 text-sm font-semibold transition sm:flex-none sm:rounded-lg sm:border-b-0 sm:px-5 sm:py-2"
+          :class="pageTab === t.key ? 'border-teal-500 text-uni-navy sm:bg-navy-50' : 'border-transparent text-medium-grey hover:text-uni-navy'"
+          @click="pageTab = t.key"
+        >
+          {{ t.label }}
+          <span v-if="tabCount(t.key) !== null" class="ml-1 text-xs font-normal text-medium-grey">{{ tabCount(t.key) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <BusinessPostsFeed
+      v-show="pageTab === 'posts'"
+      :business-id="profile.businessId"
+      :business-name="profile.businessName"
+      :logo-url="profile.imageUrl"
+      :owner-id="profile.ownerId"
+      :verified="profile.verificationStatus === 'VERIFIED'"
+      :listings="listings"
+      @count="postCount = $event"
+    />
+
+    <div v-show="pageTab === 'listings'">
       <h2 class="mb-3 font-display text-lg font-semibold text-uni-navy">Listings from {{ profile.businessName }}</h2>
 
       <p v-if="listings.length === 0" class="card text-sm text-medium-grey">No active listings right now.</p>
@@ -281,7 +334,7 @@ onMounted(load);
       </div>
     </div>
 
-    <div v-if="reviewsData" class="card space-y-4">
+    <div v-if="reviewsData" v-show="pageTab === 'reviews'" class="card space-y-4">
       <div class="flex items-center justify-between">
         <div>
           <div class="flex items-center gap-2">
@@ -292,7 +345,7 @@ onMounted(load);
             {{ reviewsData.total === 0 ? "No reviews yet" : `Based on ${reviewsData.total} review${reviewsData.total === 1 ? "" : "s"}` }}
           </p>
         </div>
-        <button v-if="auth.isAuthenticated" class="btn-secondary text-sm" @click="openReviewForm">
+        <button v-if="auth.isAuthenticated && !auth.isAdmin && profile.ownerId !== auth.user?.id" class="btn-secondary text-sm" @click="openReviewForm">
           {{ myReview ? "Edit your review" : "Leave a review" }}
         </button>
       </div>
@@ -366,11 +419,11 @@ onMounted(load);
       </div>
     </div>
 
-    <div v-if="contactOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="contactOpen = false">
-      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+    <div v-if="contactOpen" class="modal-backdrop" @click.self="contactOpen = false">
+      <div v-dialog="() => (contactOpen = false)" class="modal-panel max-w-sm" role="dialog" aria-modal="true" :aria-label="`Contact ${profile.businessName}`">
         <div class="mb-3 flex items-center justify-between">
           <h2 class="font-display text-base font-bold text-uni-navy">Contact {{ profile.businessName }}</h2>
-          <button class="text-medium-grey" @click="contactOpen = false">&times;</button>
+          <button class="text-medium-grey" aria-label="Close" @click="contactOpen = false">&times;</button>
         </div>
         <p class="mb-4 text-xs text-medium-grey">Shown because you're signed in - please keep it campus-appropriate.</p>
 

@@ -6,14 +6,18 @@ import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.domain.VerificationStatus;
 import za.co.unilinkhub.business.repository.BusinessRepository;
+import za.co.unilinkhub.common.exception.BadRequestException;
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.follow.repository.FollowedBusinessRepository;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.listing.repository.ListingRepository;
+import za.co.unilinkhub.media.application.ImageService;
+import za.co.unilinkhub.moderation.RestrictedItemsPolicy;
 import za.co.unilinkhub.notification.application.NotificationService;
 import za.co.unilinkhub.saved.application.SavedListingService;
+import za.co.unilinkhub.shared.domain.Campus;
 import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
 
@@ -32,18 +36,36 @@ public class BusinessService {
     private final FollowedBusinessRepository followedBusinessRepository;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final RestrictedItemsPolicy restrictedItemsPolicy;
 
-    public BusinessDTO create(UUID ownerId, String businessName, String description, String category) {
-        // Becoming a seller and registering a first business happen together for the MVP flow.
-        userService.becomeSeller(ownerId);
-        Business business = Business.create(ownerId, businessName, description, category);
+    public BusinessDTO create(UUID ownerId, String businessName, String description, String category,
+                              String campus, String pickupLocation) {
+        // Becoming a seller and registering a first business can happen together - but only once
+        // the student has accepted the marketplace rules (UserService.becomeSeller enforces that).
+        userService.becomeSeller(ownerId, false);
+        restrictedItemsPolicy.requireAllowed("business", businessName, description, pickupLocation);
+        Campus parsedCampus = Campus.parseOptional(campus);
+        if (parsedCampus == null) {
+            throw new BadRequestException("Please choose the CPUT campus where buyers collect from you - it's how students "
+                    + "near you find your business.");
+        }
+        Business business = Business.create(ownerId, businessName.trim(), description.trim(), category, parsedCampus,
+                pickupLocation == null || pickupLocation.isBlank() ? null : pickupLocation.trim());
         return BusinessDTO.from(businessRepository.save(business));
     }
 
     public BusinessDTO update(UUID businessId, UUID requesterId, String businessName, String description,
-                               String category, String imageUrl) {
+                               String category, String imageUrl, String campus, String pickupLocation) {
         Business business = findOwned(businessId, requesterId);
+        restrictedItemsPolicy.requireAllowed("business",
+                businessName != null ? businessName : business.getBusinessName(),
+                description != null ? description : business.getDescription());
+        ImageService.requireUploadedImageUrl(imageUrl, business.getImageUrl());
+        if (pickupLocation != null) {
+            restrictedItemsPolicy.requireAllowed("business", pickupLocation);
+        }
         business.updateDetails(businessName, description, category, imageUrl);
+        business.updateLocation(Campus.parseOptional(campus), pickupLocation);
         return BusinessDTO.from(businessRepository.save(business));
     }
 
@@ -65,10 +87,12 @@ public class BusinessService {
         return businessRepository.findByOwnerId(ownerId).stream().map(BusinessDTO::from).toList();
     }
 
-    public List<ProviderProfileDTO> listPublic(String keyword, String category, boolean verifiedOnly) {
+    public List<ProviderProfileDTO> listPublic(String keyword, String category, boolean verifiedOnly, String campus) {
         List<Business> businesses = businessRepository.findByVerificationStatusNot(VerificationStatus.REJECTED);
+        Campus wantedCampus = Campus.parseOptional(campus);
 
         return businesses.stream()
+                .filter(b -> wantedCampus == null || b.getCampus() == wantedCampus)
                 .filter(b -> !verifiedOnly || b.getVerificationStatus() == VerificationStatus.VERIFIED)
                 .filter(b -> category == null || category.isBlank() || b.getCategory().equalsIgnoreCase(category))
                 .filter(b -> keyword == null || keyword.isBlank()
@@ -89,7 +113,10 @@ public class BusinessService {
         return new ProviderProfileDTO(
                 business.getId(), business.getBusinessName(), business.getDescription(), business.getCategory(),
                 business.getVerificationStatus().name(), business.getImageUrl(), business.getOwnerId(),
-                owner.firstName() + " " + owner.lastName(), activeCount, totalViews, business.getCreatedAt()
+                owner.firstName() + " " + owner.lastName(), activeCount, totalViews, business.getCreatedAt(),
+                business.getCampus() == null ? null : business.getCampus().name(),
+                business.getCampus() == null ? null : business.getCampus().label(),
+                business.getPickupLocation()
         );
     }
 
@@ -103,6 +130,10 @@ public class BusinessService {
 
     public BusinessDTO verify(UUID businessId, UUID adminId) {
         Business business = findById(businessId);
+        if (business.getOwnerId().equals(adminId)) {
+            throw new ForbiddenException("You can't verify your own business - another admin has to review it, so every "
+                    + "verification is independent.");
+        }
         business.verify();
         BusinessDTO dto = BusinessDTO.from(businessRepository.save(business));
         auditLogService.record(adminName(adminId), "BUSINESS", "Verified business \"" + business.getBusinessName() + "\"");
@@ -167,7 +198,7 @@ public class BusinessService {
 
     public List<ProviderProfileDTO> listSimilar(UUID businessId) {
         Business business = findById(businessId);
-        return listPublic(null, business.getCategory(), false).stream()
+        return listPublic(null, business.getCategory(), false, null).stream()
                 .filter(p -> !p.businessId().equals(businessId))
                 .limit(4)
                 .toList();
@@ -175,13 +206,13 @@ public class BusinessService {
 
     private Business findById(UUID id) {
         return businessRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
     }
 
     private Business findOwned(UUID businessId, UUID requesterId) {
         Business business = findById(businessId);
         if (!business.getOwnerId().equals(requesterId)) {
-            throw new UnauthorizedException("You do not own this business");
+            throw new ForbiddenException("Only the owner of this business can do this. You can only manage businesses you created yourself.");
         }
         return business;
     }

@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import { BadgeCheck, Bell, CalendarDays, CircleQuestionMark, Megaphone, MessageCircle, Package, Receipt, Search, Star } from "@lucide/vue";
+import { BadgeCheck, Bell, CalendarDays, CircleQuestionMark, Megaphone, MessageCircle, Package, Newspaper, Receipt, Search, ShieldAlert, Star } from "@lucide/vue";
 
 export interface NotificationMeta {
   icon: Component;
@@ -17,6 +17,8 @@ const META: Record<string, NotificationMeta> = {
   ORDER: { icon: Receipt, tone: "bg-sky-50 text-sky-600" },
   QUESTION: { icon: CircleQuestionMark, tone: "bg-pink-50 text-pink-600" },
   SAVED_SEARCH: { icon: Search, tone: "bg-navy-50 text-navy-600" },
+  MODERATION: { icon: ShieldAlert, tone: "bg-red-50 text-danger" },
+  POST: { icon: Newspaper, tone: "bg-teal-50 text-teal-600" },
 };
 
 const FALLBACK: NotificationMeta = { icon: Bell, tone: "bg-slate-100 text-slate-600" };

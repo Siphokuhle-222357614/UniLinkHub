@@ -176,7 +176,7 @@ const salesDays = computed(() => (data.value?.daily ?? []).filter((p) => p.order
         </template>
         <div v-for="t in tiles" v-else :key="t.label" class="rounded-card border border-light-grey/80 bg-soft-grey/50 p-4" :class="{ 'opacity-60': loading }">
           <p class="text-xs font-medium text-medium-grey">{{ t.label }}</p>
-          <p class="mt-1 text-2xl font-semibold tracking-tight text-charcoal">{{ t.value }}</p>
+          <p class="mt-1 text-xl font-semibold tabular-nums tracking-tight text-charcoal xs:text-2xl">{{ t.value }}</p>
           <p
             v-if="t.delta"
             class="mt-1 inline-flex items-center gap-0.5 text-xs font-semibold"

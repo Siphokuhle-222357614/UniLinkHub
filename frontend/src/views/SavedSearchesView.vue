@@ -82,7 +82,7 @@ onMounted(load);
     </div>
 
     <div v-else class="space-y-3">
-      <div v-for="s in searches" :key="s.id" class="card flex items-center justify-between gap-4">
+      <div v-for="s in searches" :key="s.id" class="card flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div class="min-w-0">
           <p class="text-sm font-semibold text-charcoal">{{ s.label }}</p>
           <div class="mt-1 flex flex-wrap gap-1.5">
@@ -95,7 +95,7 @@ onMounted(load);
             <template v-if="s.newMatchesCount > 0"> &middot; {{ s.newMatchesCount }} new match{{ s.newMatchesCount === 1 ? "" : "es" }}</template>
           </p>
         </div>
-        <div class="flex shrink-0 items-center gap-3">
+        <div class="flex shrink-0 flex-wrap items-center gap-3">
           <label class="flex items-center gap-1.5 text-xs text-medium-grey" title="Notify on new matches">
             <input type="checkbox" class="accent-campus-teal" :checked="s.alertsEnabled" :disabled="togglingId === s.id" @change="toggleAlerts(s)" />
             Alerts

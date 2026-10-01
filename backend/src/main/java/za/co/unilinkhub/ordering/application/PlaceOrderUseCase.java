@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.BadRequestException;
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.listing.application.ListingService;
 import za.co.unilinkhub.listing.domain.Listing;
@@ -50,18 +51,24 @@ public class PlaceOrderUseCase {
     @Transactional
     public List<Order> execute(UUID buyerId, List<CartLineItem> cartItems, String fulfilmentMethod, String note, String promoCode) {
         if (cartItems == null || cartItems.isEmpty()) {
-            throw new BadRequestException("Your cart is empty");
+            throw new BadRequestException("Your cart is empty. Add a product before checking out.");
         }
 
         Map<UUID, List<ResolvedItem>> byBusiness = new LinkedHashMap<>();
         for (CartLineItem line : cartItems) {
             Listing listing = listingRepository.findById(line.listingId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that listing. It may have been removed by the seller."));
             if (!(listing instanceof Product)) {
-                throw new BadRequestException("\"" + listing.getName() + "\" can't be added to a cart - only products can");
+                throw new BadRequestException("\"" + listing.getName() + "\" is a service, so it can't go in your cart. Book it from its listing page instead.");
             }
             if (listing.getStatus() != ListingStatus.ACTIVE) {
-                throw new BadRequestException("\"" + listing.getName() + "\" is no longer available");
+                throw new BadRequestException("\"" + listing.getName() + "\" isn't available any more. Please remove it from your cart and try again.");
+            }
+            Business seller = businessRepository.findById(listing.getBusinessId())
+                    .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
+            if (seller.getOwnerId().equals(buyerId)) {
+                throw new ForbiddenException("You can't order \"" + listing.getName() + "\" because it's from your own business. "
+                        + "Please remove it from your cart.");
             }
             byBusiness.computeIfAbsent(listing.getBusinessId(), k -> new ArrayList<>()).add(new ResolvedItem(listing, line.quantity()));
         }
@@ -91,7 +98,7 @@ public class PlaceOrderUseCase {
             }
 
             Business business = businessRepository.findById(businessId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
             notificationService.notify(business.getOwnerId(), "ORDER",
                     "New order from " + buyerName + " (" + orderItems.size() + " item" + (orderItems.size() == 1 ? "" : "s") + ")");
         }

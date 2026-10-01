@@ -33,7 +33,11 @@ const strength = computed(() => {
   return { level: 4, label: "Strong", color: "bg-success", text: "text-success" };
 });
 
+// Shown as soon as they've typed a whole address; the backend enforces the same rule.
+const emailLooksWrong = computed(() => email.value.includes("@") && email.value.includes(".") && !email.value.trim().toLowerCase().endsWith("@mycput.ac.za"));
+
 async function submit() {
+  if (emailLooksWrong.value) return;
   loading.value = true;
   error.value = "";
   try {
@@ -57,14 +61,14 @@ async function submit() {
   <AuthLayout
     v-if="success"
     title="Check your inbox"
-    subtitle="Your account has been created. Verify your email address, then log in."
+    subtitle="Your account has been created - one last step."
   >
     <div class="rounded-card border border-emerald-200 bg-emerald-50 p-5">
       <div class="flex gap-3">
         <MailCheck class="h-5 w-5 shrink-0 text-emerald-600" />
         <p class="text-sm leading-relaxed text-emerald-900">
-          In this build no email provider is wired up yet, so the verification link is printed to the backend console. Open it
-          from there to activate your account.
+          We've sent a verification link to <span class="font-semibold">{{ email }}</span>. Click it to activate your account, then
+          log in. It can take a minute to arrive - check your spam folder too. The link works for 48 hours.
         </p>
       </div>
     </div>
@@ -88,8 +92,11 @@ async function submit() {
         <input id="reg-student" v-model="studentNumber" required inputmode="numeric" placeholder="e.g. 222357614" class="input-field" />
       </div>
       <div>
-        <label for="reg-email" class="field-label">Student email</label>
+        <label for="reg-email" class="field-label">CPUT student email</label>
         <input id="reg-email" v-model="email" type="email" required autocomplete="email" placeholder="you@mycput.ac.za" class="input-field" />
+        <p class="mt-1.5 text-xs" :class="emailLooksWrong ? 'font-medium text-danger' : 'text-medium-grey'">
+          {{ emailLooksWrong ? "This must be your CPUT student email - it ends in @mycput.ac.za." : "We'll send a link to this address to confirm you're a CPUT student." }}
+        </p>
       </div>
       <div>
         <label for="reg-password" class="field-label">Password</label>
@@ -113,7 +120,10 @@ async function submit() {
       </button>
     </form>
 
-    <p class="mt-8 text-center text-sm text-medium-grey">
+    <p class="mt-6 text-center text-xs leading-relaxed text-medium-grey">
+      By creating an account you agree to the <RouterLink to="/marketplace-rules" class="link">marketplace rules</RouterLink>.
+    </p>
+    <p class="mt-3 text-center text-sm text-medium-grey">
       Already have an account? <RouterLink to="/login" class="link">Log in</RouterLink>
     </p>
   </AuthLayout>

@@ -26,6 +26,10 @@ import za.co.unilinkhub.user.application.UserDTO;
 import za.co.unilinkhub.user.application.UserService;
 import za.co.unilinkhub.user.domain.AccountStatus;
 import za.co.unilinkhub.user.domain.User;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.authentication.BadCredentialsException;
+import za.co.unilinkhub.security.AuthAbuseGuard;
+import za.co.unilinkhub.user.application.StudentEmailPolicy;
 import za.co.unilinkhub.user.repository.UserRepository;
 
 @RestController
@@ -42,10 +46,12 @@ public class AuthController {
     private final ConfirmEmailChangeUseCase confirmEmailChangeUseCase;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthAbuseGuard authAbuseGuard;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse register(@Valid @RequestBody UserRequest.Register request) {
+    public UserResponse register(@Valid @RequestBody UserRequest.Register request, HttpServletRequest http) {
+        authAbuseGuard.beforeRegister(http);
         UserDTO user = registerUserUseCase.execute(
                 request.studentNumber(), request.firstName(), request.lastName(),
                 request.email(), request.password()
@@ -58,14 +64,28 @@ public class AuthController {
         return UserResponse.from(userService.verifyEmail(token));
     }
 
+    @PostMapping("/resend-verification")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void resendVerification(@Valid @RequestBody UserRequest.ForgotPassword request, HttpServletRequest http) {
+        authAbuseGuard.beforeSendingEmail("verify", request.email(), http);
+        userService.resendVerification(request.email());
+    }
+
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody UserRequest.Login request) {
+    public AuthResponse login(@Valid @RequestBody UserRequest.Login rawRequest, HttpServletRequest http) {
+        UserRequest.Login request = new UserRequest.Login(StudentEmailPolicy.normalize(rawRequest.email()), rawRequest.password());
+        authAbuseGuard.beforeLogin(request.email(), http);
         try {
-            return doLogin(request);
+            AuthResponse response = doLogin(request);
+            authAbuseGuard.loginSucceeded(request.email());
+            return response;
+        } catch (BadCredentialsException ex) {
+            authAbuseGuard.loginFailed(request.email(), http);
+            throw ex;
         } catch (DisabledException ex) {
             // A deactivated (self-service) account can reactivate itself simply by logging back
-            // in with the right password - a pending-verification account (also "disabled")
-            // cannot, since it has no password confirmation to lean on here, so it falls through.
+            // in with the right password. A pending-verification account (also "disabled") has to
+            // click the link in its verification email first.
             User user = userRepository.findByEmail(request.email()).orElse(null);
             if (user != null && user.getAccountStatus() == AccountStatus.DEACTIVATED
                     && passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -73,7 +93,8 @@ public class AuthController {
                 userRepository.save(user);
                 return doLogin(request);
             }
-            throw ex;
+            throw new DisabledException("Please verify your email address before logging in. We sent a link to "
+                    + request.email() + " when you signed up - check your inbox and spam folder, or ask us to send a new one.");
         } catch (LockedException ex) {
             User user = userRepository.findByEmail(request.email()).orElse(null);
             String reason = user == null ? null : user.getSuspensionReason();
@@ -96,7 +117,8 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void forgotPassword(@Valid @RequestBody UserRequest.ForgotPassword request) {
+    public void forgotPassword(@Valid @RequestBody UserRequest.ForgotPassword request, HttpServletRequest http) {
+        authAbuseGuard.beforeSendingEmail("reset", request.email(), http);
         requestPasswordResetUseCase.execute(request.email());
     }
 

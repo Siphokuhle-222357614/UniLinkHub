@@ -4,6 +4,10 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+  # The in-memory test database is built straight from the entities. The real migrations are
+  # checked against MySQL by MigrationTest (runs in CI, or locally with MIGRATION_TEST_DB_URL set).
+  flyway:
+    enabled: false
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -13,6 +17,12 @@ spring:
         format_sql: false
 
 unilinkhub:
+  # Every test request comes from 127.0.0.1, so per-network limits are raised for the test suite.
+  # The per-account limits (wrong passwords per email, emails per address) stay at their real values.
+  rate-limits:
+    failed-logins-per-ip: 100000
+    registrations-per-ip-per-hour: 100000
+    emails-per-ip-per-hour: 100000
   security:
     jwt:
       secret: test-secret-key-for-unit-and-integration-tests-only-32bytes

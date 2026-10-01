@@ -26,7 +26,7 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
                 : null;
 
         if (!(principal instanceof UserPrincipal userPrincipal)) {
-            throw new UnauthorizedException("Authentication required");
+            throw new UnauthorizedException(za.co.unilinkhub.common.web.RejectionMessages.NOT_LOGGED_IN);
         }
         return userPrincipal.getId();
     }

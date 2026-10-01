@@ -1,12 +1,14 @@
 package za.co.unilinkhub.messaging.application;
 
+import za.co.unilinkhub.realtime.RealtimeHub;
+import java.util.Map;
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.BadRequestException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 import za.co.unilinkhub.messaging.domain.Conversation;
@@ -32,21 +34,24 @@ public class MessageService {
     private final BusinessRepository businessRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final RealtimeHub realtimeHub;
 
     public ConversationSummaryView startConversation(UUID buyerId, UUID listingId, String body) {
         Listing listing = listingRepository.findById(listingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that listing. It may have been removed by the seller."));
         Business business = businessRepository.findById(listing.getBusinessId())
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
         if (business.getOwnerId().equals(buyerId)) {
-            throw new BadRequestException("You can't message your own business");
+            throw new BadRequestException("You can't message your own business - the conversation would only be with yourself.");
         }
 
         Conversation conversation = conversationRepository.findByBusinessIdAndBuyerId(business.getId(), buyerId)
                 .orElseGet(() -> conversationRepository.save(
                         Conversation.start(business.getId(), buyerId, business.getOwnerId(), listingId)));
 
-        messageRepository.save(Message.send(conversation.getId(), buyerId, body));
+        Message first = messageRepository.save(Message.send(conversation.getId(), buyerId, body));
+        realtimeHub.publish(business.getOwnerId(), "message",
+                Map.of("conversationId", conversation.getId(), "message", MessageDTO.from(first)));
 
         String buyerName = userRepository.findById(buyerId).map(User::getFullName).orElse("A student");
         notificationService.notify(business.getOwnerId(), "MESSAGE",
@@ -64,8 +69,9 @@ public class MessageService {
                 ? userRepository.findById(senderId).map(User::getFullName).orElse("A student")
                 : businessRepository.findById(conversation.getBusinessId()).map(Business::getBusinessName).orElse("A seller");
         notificationService.notify(recipientId, "MESSAGE", "New message from " + senderName);
-
-        return MessageDTO.from(message);
+        MessageDTO dto = MessageDTO.from(message);
+        realtimeHub.publish(recipientId, "message", Map.of("conversationId", conversationId, "message", dto));
+        return dto;
     }
 
     public List<ConversationSummaryView> listMine(UUID userId) {
@@ -99,9 +105,9 @@ public class MessageService {
 
     private Conversation findParticipant(UUID conversationId, UUID userId) {
         Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Conversation not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that conversation."));
         if (!conversation.getBuyerId().equals(userId) && !conversation.getSellerId().equals(userId)) {
-            throw new UnauthorizedException("You are not part of this conversation");
+            throw new ForbiddenException("You can only open conversations you're part of. Messages are private between the buyer and the seller.");
         }
         return conversation;
     }

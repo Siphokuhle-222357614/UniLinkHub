@@ -21,11 +21,19 @@ const router = createRouter({
     { path: "/login", name: "login", component: () => import("@/views/LoginView.vue"), meta: { layout: "bare" } },
     { path: "/register", name: "register", component: () => import("@/views/RegisterView.vue"), meta: { layout: "bare" } },
     { path: "/forgot-password", name: "forgot-password", component: () => import("@/views/ForgotPasswordView.vue"), meta: { layout: "bare" } },
+    { path: "/verify-email", name: "verify-email", component: () => import("@/views/VerifyEmailView.vue"), meta: { layout: "bare" } },
+    {
+      path: "/confirm-email-change",
+      name: "confirm-email-change",
+      component: () => import("@/views/ConfirmEmailChangeView.vue"),
+      meta: { layout: "bare" },
+    },
+    { path: "/marketplace-rules", name: "marketplace-rules", component: () => import("@/views/MarketplaceRulesView.vue") },
     {
       path: "/dashboard",
       name: "dashboard",
       component: () => import("@/views/DashboardView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/account",
@@ -37,7 +45,7 @@ const router = createRouter({
       path: "/my-listings",
       name: "my-listings",
       component: () => import("@/views/MyListingsView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/recently-viewed",
@@ -59,61 +67,61 @@ const router = createRouter({
       path: "/bookings",
       name: "my-bookings",
       component: () => import("@/views/MyBookingsView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/listings/:id/insights",
       name: "listing-insights",
       component: () => import("@/views/ListingInsightsView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/messages",
       name: "messages",
       component: () => import("@/views/MessagesView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/messages/:id",
       name: "conversation",
       component: () => import("@/views/ConversationView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true, hideFooter: true },
     },
     {
       path: "/checkout",
       name: "checkout",
       component: () => import("@/views/CheckoutView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/orders",
       name: "my-orders",
       component: () => import("@/views/MyOrdersView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/orders/selling",
       name: "seller-orders",
       component: () => import("@/views/SellerOrdersView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/questions",
       name: "seller-questions",
       component: () => import("@/views/SellerQuestionsView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/promo-codes",
       name: "promo-codes",
       component: () => import("@/views/PromoCodesView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/saved-searches",
       name: "saved-searches",
       component: () => import("@/views/SavedSearchesView.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, studentOnly: true },
     },
     {
       path: "/admin",
@@ -136,19 +144,24 @@ router.beforeEach(async (to) => {
   if (to.meta.requiresAdmin && !auth.isAdmin) {
     return { name: "browse" };
   }
+  // Admin accounts run the marketplace rather than take part in it, so buyer/seller pages send
+  // them to their console instead.
+  if (to.meta.studentOnly && auth.isAdmin) {
+    return { name: "admin-dashboard" };
+  }
 
   const saved = useSavedListingsStore();
-  if (auth.isAuthenticated && !saved.initialized) {
+  if (auth.isAuthenticated && !auth.isAdmin && !saved.initialized) {
     saved.fetchSaved().catch(() => {});
   }
 
   const followed = useFollowedProvidersStore();
-  if (auth.isAuthenticated && !followed.initialized) {
+  if (auth.isAuthenticated && !auth.isAdmin && !followed.initialized) {
     followed.fetchFollowed().catch(() => {});
   }
 
   const messages = useMessagesStore();
-  if (auth.isAuthenticated && !messages.initialized) {
+  if (auth.isAuthenticated && !auth.isAdmin && !messages.initialized) {
     messages.fetchUnreadCount();
     messages.initialized = true;
   }

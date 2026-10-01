@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +22,7 @@ import za.co.unilinkhub.business.application.BusinessStatsDTO;
 import za.co.unilinkhub.business.application.ProviderProfileDTO;
 import za.co.unilinkhub.follow.application.FollowService;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,28 +37,35 @@ public class BusinessController {
     public record CreateBusinessRequest(
             @NotBlank String businessName,
             @NotBlank String description,
-            @NotBlank String category
+            @NotBlank String category,
+            String campus,
+            String pickupLocation
     ) {
     }
 
-    public record UpdateBusinessRequest(String businessName, String description, String category, String imageUrl) {
+    public record UpdateBusinessRequest(String businessName, String description, String category, String imageUrl,
+                                        String campus, String pickupLocation) {
     }
 
     public record RejectRequest(String reason) {
     }
 
+    @StudentOnly("register businesses")
     @PostMapping("/api/businesses")
     @ResponseStatus(HttpStatus.CREATED)
     public BusinessDTO create(@CurrentUser UUID userId, @Valid @RequestBody CreateBusinessRequest request) {
-        return businessService.create(userId, request.businessName(), request.description(), request.category());
+        return businessService.create(userId, request.businessName(), request.description(), request.category(),
+                request.campus(), request.pickupLocation());
     }
 
+    @StudentOnly("manage businesses")
     @PatchMapping("/api/businesses/{id}")
     public BusinessDTO update(@CurrentUser UUID userId, @PathVariable UUID id, @RequestBody UpdateBusinessRequest request) {
         return businessService.update(id, userId, request.businessName(), request.description(),
-                request.category(), request.imageUrl());
+                request.category(), request.imageUrl(), request.campus(), request.pickupLocation());
     }
 
+    @StudentOnly("request business verification")
     @PostMapping("/api/businesses/{id}/request-verification")
     public BusinessDTO requestVerification(@CurrentUser UUID userId, @PathVariable UUID id) {
         return businessService.requestVerification(id, userId);
@@ -72,8 +79,9 @@ public class BusinessController {
     @GetMapping("/api/businesses")
     public List<ProviderProfileDTO> directory(@RequestParam(required = false) String keyword,
                                                @RequestParam(required = false) String category,
-                                               @RequestParam(defaultValue = "false") boolean verifiedOnly) {
-        return businessService.listPublic(keyword, category, verifiedOnly);
+                                               @RequestParam(defaultValue = "false") boolean verifiedOnly,
+                                               @RequestParam(required = false) String campus) {
+        return businessService.listPublic(keyword, category, verifiedOnly, campus);
     }
 
     @GetMapping("/api/businesses/{id}/profile")
@@ -101,6 +109,7 @@ public class BusinessController {
         return businessService.getContact(id);
     }
 
+    @StudentOnly("follow businesses")
     @PostMapping("/api/businesses/{id}/follow")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void follow(@CurrentUser UUID userId, @PathVariable UUID id) {

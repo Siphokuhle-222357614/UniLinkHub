@@ -1,5 +1,7 @@
 package za.co.unilinkhub.notification.application;
 
+import za.co.unilinkhub.realtime.RealtimeHub;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.audit.application.AuditLogService;
@@ -25,6 +27,7 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final BusinessRepository businessRepository;
     private final AuditLogService auditLogService;
+    private final RealtimeHub realtimeHub;
 
     public void notify(UUID userId, String category, String message) {
         boolean enabled = userRepository.findById(userId)
@@ -34,6 +37,7 @@ public class NotificationService {
             return;
         }
         notificationRepository.save(Notification.create(userId, category, message));
+        realtimeHub.publish(userId, "notification", Map.of("category", category, "message", message));
     }
 
     public int broadcast(UUID adminId, String audience, String message) {

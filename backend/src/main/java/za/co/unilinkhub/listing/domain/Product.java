@@ -15,14 +15,13 @@ import java.util.UUID;
 public class Product extends Listing {
 
     private Integer stockQuantity;
-    private String imageUrl;
     private Integer lowStockThreshold;
 
     private Product(UUID businessId, String name, String description, String category,
                      BigDecimal price, Integer stockQuantity, String imageUrl) {
         super(businessId, name, description, category, price);
         this.stockQuantity = stockQuantity;
-        this.imageUrl = imageUrl;
+        updateImageUrl(imageUrl);
     }
 
     public static Product create(UUID businessId, String name, String description, String category,
@@ -37,10 +36,6 @@ public class Product extends Listing {
         } else if (getStatus() == ListingStatus.SOLD_OUT) {
             reactivate();
         }
-    }
-
-    public void updateImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
     }
 
     public void updateLowStockThreshold(Integer lowStockThreshold) {

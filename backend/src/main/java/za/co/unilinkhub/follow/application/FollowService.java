@@ -6,6 +6,8 @@ import org.springframework.transaction.annotation.Transactional;
 import za.co.unilinkhub.business.application.BusinessService;
 import za.co.unilinkhub.business.application.ProviderProfileDTO;
 import za.co.unilinkhub.business.repository.BusinessRepository;
+import za.co.unilinkhub.business.domain.Business;
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
 import za.co.unilinkhub.follow.domain.FollowedBusiness;
 import za.co.unilinkhub.follow.repository.FollowedBusinessRepository;
@@ -24,8 +26,11 @@ public class FollowService {
     private final BusinessService businessService;
 
     public void follow(UUID userId, UUID businessId) {
-        if (businessRepository.findById(businessId).isEmpty()) {
-            throw new ResourceNotFoundException("Business not found");
+        Business business = businessRepository.findById(businessId)
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
+        if (business.getOwnerId().equals(userId)) {
+            throw new ForbiddenException("You can't follow your own business. Followers are the students who want your updates - "
+                    + "share a post on your page to give them a reason to follow.");
         }
         if (!followedBusinessRepository.existsByUserIdAndBusinessId(userId, businessId)) {
             followedBusinessRepository.save(FollowedBusiness.create(userId, businessId));

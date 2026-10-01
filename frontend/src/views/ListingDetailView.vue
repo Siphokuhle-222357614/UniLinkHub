@@ -18,17 +18,25 @@ import {
   Eye,
   Flag,
   Heart,
+  MapPin,
   MessageCircle,
   Package,
   Share2,
+  ShieldAlert,
+  ShieldCheck,
+  Undo2,
+  Ban,
   ShoppingBag,
   TicketPercent,
   X,
 } from "@lucide/vue";
 import ListingCard from "@/components/ListingCard.vue";
+import ListingGallery from "@/components/ListingGallery.vue";
+import SellerTrustBadges from "@/components/SellerTrustBadges.vue";
 import { categoryMeta } from "@/lib/categoryMeta";
+import { REPORT_REASONS } from "@/lib/reports";
 import { formatPrice, initials, relativeTime } from "@/lib/format";
-import type { BusinessDTO, ListingDTO, PromoCodeDTO, QuestionView } from "@/lib/types";
+import type { BusinessDTO, ListingDTO, PromoCodeDTO, QuestionView, ReportReason } from "@/lib/types";
 
 const route = useRoute();
 const router = useRouter();
@@ -43,7 +51,7 @@ const moreFromSeller = ref<ListingDTO[]>([]);
 const activePromo = ref<PromoCodeDTO | null>(null);
 const error = ref("");
 const reportOpen = ref(false);
-const reportReason = ref("MISREPRESENTATION");
+const reportReason = ref<ReportReason>("PROHIBITED_ITEM");
 const reportDetails = ref("");
 const reportStatus = ref("");
 
@@ -242,7 +250,6 @@ async function submitReport() {
   }
 }
 
-const imageFailed = ref(false);
 const meta = computed(() => categoryMeta(listing.value?.category));
 
 const discountedPrice = computed(() => {
@@ -255,6 +262,37 @@ const discountedPrice = computed(() => {
 });
 
 const isOwnListing = computed(() => !!business.value && business.value.ownerId === auth.user?.id);
+
+// ---- Admin moderation ----
+const TAKEDOWN_PRESETS = ["Selling alcohol", "Selling drugs", "Selling weapons", "Cigarettes or vapes", "Cheating service", "Fake or stolen goods"];
+const takedownOpen = ref(false);
+const takedownReason = ref("");
+const moderating = ref(false);
+
+async function takeDownListing() {
+  if (!listing.value || !takedownReason.value.trim()) return;
+  moderating.value = true;
+  try {
+    const { data } = await api.post<ListingDTO>(`/admin/listings/${listing.value.id}/take-down`, { reason: takedownReason.value.trim() });
+    listing.value = data;
+    takedownOpen.value = false;
+    toast.success("Listing taken down", "The seller has been notified.");
+  } finally {
+    moderating.value = false;
+  }
+}
+
+async function restoreListing() {
+  if (!listing.value) return;
+  moderating.value = true;
+  try {
+    const { data } = await api.post<ListingDTO>(`/admin/listings/${listing.value.id}/restore`);
+    listing.value = data;
+    toast.success("Listing restored", "It stays hidden until the seller switches it back on.");
+  } finally {
+    moderating.value = false;
+  }
+}
 
 const promoCopied = ref(false);
 async function copyPromo() {
@@ -273,6 +311,16 @@ onMounted(load);
 
 <template>
   <section v-if="listing" class="space-y-12">
+    <!-- Only the owner and admins can open a listing that was taken down. -->
+    <div v-if="listing.takenDownAt" class="flex gap-3 rounded-card border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert">
+      <ShieldAlert class="mt-0.5 h-5 w-5 shrink-0 text-danger" />
+      <div>
+        <p class="font-semibold">This listing was removed by an admin for breaking the marketplace rules.</p>
+        <p class="mt-0.5">Reason: {{ listing.takedownReason }}. It's hidden from everyone else{{ isOwnListing ? " and can't be switched back on" : "" }}.</p>
+        <RouterLink to="/marketplace-rules" class="mt-1 inline-block font-semibold underline underline-offset-2">Read the marketplace rules</RouterLink>
+      </div>
+    </div>
+
     <nav class="flex items-center gap-1.5 text-xs text-medium-grey" aria-label="Breadcrumb">
       <RouterLink to="/" class="hover:text-uni-navy">Explore</RouterLink>
       <ChevronRight class="h-3.5 w-3.5" />
@@ -282,19 +330,14 @@ onMounted(load);
     </nav>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:gap-10">
-      <!-- Media -->
-      <div class="relative overflow-hidden rounded-modal bg-soft-grey shadow-card ring-1 ring-light-grey/80 lg:col-start-1">
-        <img
-          v-if="listing.imageUrl && !imageFailed"
-          :src="listing.imageUrl"
-          :alt="listing.name"
-          class="aspect-[4/3] w-full object-cover"
-          @error="imageFailed = true"
-        />
-        <div v-else class="flex aspect-[4/3] w-full items-center justify-center" :style="{ background: meta.gradient }">
-          <component :is="meta.icon" class="h-24 w-24 text-navy-900/15" :stroke-width="1.25" />
-        </div>
-        <div class="absolute left-4 top-4 flex gap-2">
+      <!-- Media: swipe on phones, arrows/thumbnails/keyboard on desktop -->
+      <ListingGallery
+        class="lg:col-start-1"
+        :photos="listing.imageUrls?.length ? listing.imageUrls : listing.imageUrl ? [listing.imageUrl] : []"
+        :name="listing.name"
+        :category="listing.category"
+      >
+        <div class="pointer-events-none absolute left-4 top-4 flex gap-2">
           <span class="badge bg-white/90 py-1 text-navy-700 shadow-xs backdrop-blur">
             <component :is="listing.type === 'PRODUCT' ? Package : CalendarClock" class="h-3.5 w-3.5" />
             {{ listing.type === "PRODUCT" ? "Product" : "Service" }}
@@ -302,7 +345,7 @@ onMounted(load);
           <span v-if="listing.status === 'SOLD_OUT'" class="badge bg-navy-900/85 py-1 text-white">Sold out</span>
           <span v-else-if="listing.status === 'INACTIVE'" class="badge bg-danger py-1 text-white">Inactive</span>
         </div>
-      </div>
+      </ListingGallery>
 
       <!-- Purchase panel (second on mobile, sticky right column on desktop) -->
       <div class="lg:col-start-2 lg:row-span-2 lg:row-start-1">
@@ -340,6 +383,10 @@ onMounted(load);
                 </span>
                 <component :is="promoCopied ? Check : Copy" class="h-3.5 w-3.5 shrink-0" />
               </button>
+              <p v-if="listing.campusLabel" class="mt-3 flex items-start gap-1.5 text-sm text-charcoal">
+                <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-teal-600" />
+                <span>Collect at <span class="font-semibold">{{ listing.pickupLocation ? `${listing.pickupLocation}, ` : "" }}{{ listing.campusLabel }} campus</span></span>
+              </p>
               <p class="mt-3 text-sm text-charcoal">
                 <template v-if="listing.type === 'PRODUCT'">
                   <span class="font-semibold">{{ listing.stockQuantity ?? "N/A" }}</span> in stock
@@ -352,7 +399,7 @@ onMounted(load);
             </div>
 
             <div class="space-y-2.5">
-              <template v-if="listing.status === 'ACTIVE' && !isOwnListing">
+              <template v-if="listing.status === 'ACTIVE' && !isOwnListing && !auth.isAdmin">
                 <template v-if="listing.type === 'SERVICE'">
                   <button v-if="auth.isAuthenticated" class="btn-primary w-full py-3" @click="bookingOpen = true; bookingStatus = ''">
                     <CalendarClock class="h-4 w-4" /> Request a booking
@@ -370,7 +417,7 @@ onMounted(load);
               <p v-if="bookingStatus" class="text-sm text-success">{{ bookingStatus }}</p>
 
               <button
-                v-if="listing.type === 'PRODUCT' && listing.status === 'SOLD_OUT' && auth.isAuthenticated"
+                v-if="listing.type === 'PRODUCT' && listing.status === 'SOLD_OUT' && auth.isAuthenticated && !auth.isAdmin"
                 class="btn w-full border py-3"
                 :class="notifySubscribed ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-light-grey bg-white text-charcoal hover:bg-soft-grey'"
                 :disabled="notifyLoading"
@@ -381,14 +428,14 @@ onMounted(load);
 
               <div class="flex gap-2">
                 <button
-                  v-if="auth.isAuthenticated && business && !isOwnListing"
+                  v-if="auth.isAuthenticated && !auth.isAdmin && business && !isOwnListing"
                   class="btn-secondary flex-1"
                   @click="messageOpen = true; messageStatus = ''; messageBody = ''"
                 >
                   <MessageCircle class="h-4 w-4" /> <span class="max-[359px]:hidden">Message seller</span><span class="min-[360px]:hidden">Message</span>
                 </button>
                 <button
-                  v-if="auth.isAuthenticated"
+                  v-if="auth.isAuthenticated && !auth.isAdmin"
                   class="btn-secondary px-3"
                   :aria-label="saved.isSaved(listing.id) ? 'Unsave listing' : 'Save listing'"
                   :aria-pressed="saved.isSaved(listing.id)"
@@ -412,6 +459,20 @@ onMounted(load);
             </div>
           </div>
 
+          <div v-if="auth.isAdmin" class="card space-y-3 border-gold-200 bg-gold-50/40 p-5">
+            <p class="flex items-center gap-2 text-sm font-semibold text-uni-navy"><ShieldCheck class="h-4 w-4 text-gold-600" /> Admin tools</p>
+            <p class="text-xs leading-relaxed text-medium-grey">
+              Admin accounts can't buy or message sellers. If this listing breaks the marketplace rules, take it down - the seller is
+              told the reason and can't switch it back on.
+            </p>
+            <button v-if="!listing.takenDownAt" class="btn-danger w-full" @click="takedownOpen = true; takedownReason = ''">
+              <Ban class="h-4 w-4" /> Take down listing
+            </button>
+            <button v-else class="btn-secondary w-full" :disabled="moderating" @click="restoreListing">
+              <Undo2 class="h-4 w-4" /> Restore listing
+            </button>
+          </div>
+
           <RouterLink v-if="business" :to="`/providers/${business.id}`" class="group card card-interactive flex items-center gap-3.5 p-4">
             <img v-if="business.imageUrl" :src="business.imageUrl" alt="" class="h-12 w-12 shrink-0 rounded-xl object-cover ring-1 ring-light-grey" />
             <span v-else class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl font-display font-bold" :class="categoryMeta(business.category).tile">
@@ -427,18 +488,16 @@ onMounted(load);
             <ChevronRight class="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-teal-600" />
           </RouterLink>
 
-          <div v-if="auth.isAuthenticated" class="px-1">
+          <SellerTrustBadges v-if="listing.seller" :trust="listing.seller" class="px-1" />
+
+          <div v-if="auth.isAuthenticated && !auth.isAdmin && !isOwnListing" class="px-1">
             <button v-if="!reportOpen" class="inline-flex items-center gap-1.5 text-xs font-medium text-medium-grey hover:text-danger" @click="reportOpen = true">
               <Flag class="h-3.5 w-3.5" /> Report this listing
             </button>
             <form v-else class="card space-y-3 p-4" @submit.prevent="submitReport">
               <p class="text-sm font-semibold text-uni-navy">Report this listing</p>
               <select v-model="reportReason" class="input-field">
-                <option value="MISREPRESENTATION">Misrepresentation</option>
-                <option value="NON_DELIVERY">Non-delivery</option>
-                <option value="INAPPROPRIATE_CONDUCT">Inappropriate conduct</option>
-                <option value="SPAM">Spam</option>
-                <option value="OTHER">Other</option>
+                <option v-for="r in REPORT_REASONS" :key="r.value" :value="r.value">{{ r.label }}</option>
               </select>
               <textarea v-model="reportDetails" class="input-field" rows="3" placeholder="Tell us what happened (optional)"></textarea>
               <div class="flex gap-2">
@@ -467,7 +526,7 @@ onMounted(load);
             <span v-if="questions.length > 0" class="badge shrink-0 bg-soft-grey text-medium-grey">{{ questions.length }}</span>
           </div>
 
-          <div v-if="auth.isAuthenticated" class="rounded-card border border-light-grey p-3 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/15">
+          <div v-if="auth.isAuthenticated && !auth.isAdmin" class="rounded-card border border-light-grey p-3 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/15">
             <textarea
               v-model="questionDraft"
               rows="2"
@@ -535,9 +594,33 @@ onMounted(load);
       </div>
     </div>
 
+    <!-- Admin: take-down modal -->
+    <div v-if="takedownOpen" class="modal-backdrop" @click.self="takedownOpen = false">
+      <div v-dialog="() => (takedownOpen = false)" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="takedown-title">
+        <div class="mb-1 flex items-center justify-between">
+          <h2 id="takedown-title" class="font-display text-lg font-bold text-uni-navy">Take down this listing?</h2>
+          <button class="btn-icon h-8 w-8" aria-label="Close" @click="takedownOpen = false"><X class="h-4 w-4" /></button>
+        </div>
+        <p class="mb-4 text-sm text-medium-grey">It disappears from the marketplace straight away. The seller is notified with your reason and warned about the consequences.</p>
+        <div class="mb-3 flex flex-wrap gap-1.5">
+          <button v-for="preset in TAKEDOWN_PRESETS" :key="preset" type="button" class="chip" :class="{ 'chip-active': takedownReason === preset }" @click="takedownReason = preset">
+            {{ preset }}
+          </button>
+        </div>
+        <label for="takedown-reason" class="field-label">Reason shown to the seller</label>
+        <textarea id="takedown-reason" v-model="takedownReason" rows="3" class="input-field" placeholder="e.g. Selling alcohol in residence"></textarea>
+        <div class="mt-6 flex gap-2">
+          <button class="btn-secondary flex-1" @click="takedownOpen = false">Cancel</button>
+          <button class="btn-danger flex-1" :disabled="moderating || !takedownReason.trim()" @click="takeDownListing">
+            {{ moderating ? "Taking down…" : "Take down" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Booking modal -->
     <div v-if="bookingOpen" class="modal-backdrop" @click.self="bookingOpen = false">
-      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="booking-title">
+      <div v-dialog="() => (bookingOpen = false)" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="booking-title">
         <div class="mb-1 flex items-center justify-between">
           <h2 id="booking-title" class="font-display text-lg font-bold text-uni-navy">Request a booking</h2>
           <button class="btn-icon h-8 w-8" aria-label="Close" @click="bookingOpen = false"><X class="h-4 w-4" /></button>
@@ -568,7 +651,7 @@ onMounted(load);
 
     <!-- Message modal -->
     <div v-if="messageOpen" class="modal-backdrop" @click.self="messageOpen = false">
-      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="message-title">
+      <div v-dialog="() => (messageOpen = false)" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="message-title">
         <div class="mb-1 flex items-center justify-between">
           <h2 id="message-title" class="font-display text-lg font-bold text-uni-navy">Message {{ business?.businessName }}</h2>
           <button class="btn-icon h-8 w-8" aria-label="Close" @click="messageOpen = false"><X class="h-4 w-4" /></button>

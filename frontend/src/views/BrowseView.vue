@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ArrowRight,
   BadgeCheck,
   Bookmark,
   Flame,
+  MapPin,
   MessageCircle,
   Search,
   SearchX,
@@ -18,11 +19,12 @@ import {
 } from "@lucide/vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
+import { campusLabel, useCampuses } from "@/lib/campuses";
 import { categoryMeta } from "@/lib/categoryMeta";
 import { formatPrice } from "@/lib/format";
 import { useAuthStore } from "@/stores/auth";
 import { useToastStore } from "@/stores/toast";
-import type { ListingDTO, ProviderProfileDTO } from "@/lib/types";
+import type { ListingDTO, PageResponse, ProviderProfileDTO } from "@/lib/types";
 import ListingCard from "@/components/ListingCard.vue";
 import SkeletonCard from "@/components/ui/SkeletonCard.vue";
 import EmptyState from "@/components/ui/EmptyState.vue";
@@ -52,6 +54,8 @@ const maxPrice = ref("");
 const kind = ref<"ALL" | "PRODUCT" | "SERVICE">("ALL");
 const verifiedOnly = ref(false);
 const sort = ref("newest");
+const campus = ref("");
+const campuses = useCampuses();
 const KIND_OPTIONS = [
   { v: "ALL", l: "All" },
   { v: "PRODUCT", l: "Products" },
@@ -68,10 +72,9 @@ let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 
 async function loadCategoryCounts() {
   try {
-    const { data } = await api.get<ListingDTO[]>("/listings");
-    const counts: Record<string, number> = {};
-    for (const l of data) counts[l.category] = (counts[l.category] ?? 0) + 1;
-    categoryCounts.value = counts;
+    // Counted by the database - previously this downloaded every listing just to count them.
+    const { data } = await api.get<Record<string, number>>("/listings/category-counts");
+    categoryCounts.value = data;
   } catch {
     // Category tile counts are a nice-to-have; ignore failures here.
   }
@@ -79,8 +82,8 @@ async function loadCategoryCounts() {
 
 async function loadTrending() {
   try {
-    const { data } = await api.get<ListingDTO[]>("/listings", { params: { sort: "views" } });
-    trending.value = data.filter((l) => l.status === "ACTIVE").slice(0, 4);
+    const { data } = await api.get<ListingDTO[]>("/listings", { params: { sort: "views", limit: 4 } });
+    trending.value = data;
   } catch {
     // Trending is a nice-to-have; ignore failures here.
   }
@@ -156,28 +159,75 @@ function chooseSuggestedCategory(c: string) {
   suggestionsOpen.value = false;
 }
 
+// ---- Paged results: the first page replaces, "load more" appends ----
+const PAGE_SIZE = 24;
+const page = ref(0);
+const totalItems = ref(0);
+const hasNext = ref(false);
+const loadingMore = ref(false);
+let searchSeq = 0;
+
+function searchParams(p: number) {
+  return {
+    keyword: keyword.value || undefined,
+    category: category.value || undefined,
+    minPrice: minPrice.value || undefined,
+    maxPrice: maxPrice.value || undefined,
+    type: kind.value === "ALL" ? undefined : kind.value,
+    verifiedOnly: verifiedOnly.value || undefined,
+    campus: campus.value || undefined,
+    sort: sort.value,
+    page: p,
+    size: PAGE_SIZE,
+  };
+}
+
 async function search() {
+  const seq = ++searchSeq;
   loading.value = true;
   error.value = "";
   try {
-    const { data } = await api.get<ListingDTO[]>("/listings", {
-      params: {
-        keyword: keyword.value || undefined,
-        category: category.value || undefined,
-        minPrice: minPrice.value || undefined,
-        maxPrice: maxPrice.value || undefined,
-        type: kind.value === "ALL" ? undefined : kind.value,
-        verifiedOnly: verifiedOnly.value || undefined,
-        sort: sort.value,
-      },
-    });
-    listings.value = data;
+    const { data } = await api.get<PageResponse<ListingDTO>>("/listings/search", { params: searchParams(0) });
+    if (seq !== searchSeq) return; // a newer filter change already superseded this one
+    listings.value = data.items;
+    page.value = 0;
+    totalItems.value = data.totalItems;
+    hasNext.value = data.hasNext;
   } catch (err) {
     error.value = extractErrorMessage(err);
   } finally {
-    loading.value = false;
+    if (seq === searchSeq) loading.value = false;
   }
 }
+
+async function loadMore() {
+  if (!hasNext.value || loadingMore.value || loading.value) return;
+  const seq = searchSeq;
+  loadingMore.value = true;
+  try {
+    const { data } = await api.get<PageResponse<ListingDTO>>("/listings/search", { params: searchParams(page.value + 1) });
+    if (seq !== searchSeq) return;
+    listings.value = [...listings.value, ...data.items];
+    page.value = data.page;
+    hasNext.value = data.hasNext;
+  } catch {
+    // The button stays, so they can simply try again.
+  } finally {
+    loadingMore.value = false;
+  }
+}
+
+// Load the next page automatically as the end of the results scrolls into view.
+const sentinel = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | undefined;
+watch(sentinel, (el) => {
+  observer?.disconnect();
+  if (el && "IntersectionObserver" in window) {
+    observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && loadMore(), { rootMargin: "400px" });
+    observer.observe(el);
+  }
+});
+onBeforeUnmount(() => observer?.disconnect());
 
 function clearFilters() {
   keyword.value = "";
@@ -186,10 +236,11 @@ function clearFilters() {
   maxPrice.value = "";
   kind.value = "ALL";
   verifiedOnly.value = false;
+  campus.value = "";
   sort.value = "newest";
 }
 
-const resultsLabel = computed(() => (listings.value.length === 1 ? "1 listing" : `${listings.value.length} listings`));
+const resultsLabel = computed(() => (totalItems.value === 1 ? "1 listing" : `${totalItems.value.toLocaleString("en-ZA")} listings`));
 
 const searchLabel = computed(() => {
   const parts: string[] = [];
@@ -208,6 +259,7 @@ const activeChips = computed(() => {
   const chips: { label: string; clear: () => void }[] = [];
   if (keyword.value) chips.push({ label: `“${keyword.value}”`, clear: () => (keyword.value = "") });
   if (category.value) chips.push({ label: category.value, clear: () => (category.value = "") });
+  if (campus.value) chips.push({ label: `${campusLabel(campus.value)} campus`, clear: () => (campus.value = "") });
   if (minPrice.value) chips.push({ label: `From R${minPrice.value}`, clear: () => (minPrice.value = "") });
   if (maxPrice.value) chips.push({ label: `Up to R${maxPrice.value}`, clear: () => (maxPrice.value = "") });
   if (kind.value !== "ALL") chips.push({ label: kind.value === "PRODUCT" ? "Products" : "Services", clear: () => (kind.value = "ALL") });
@@ -260,11 +312,12 @@ async function saveSearch() {
 function applyQuery(query: typeof route.query) {
   if (typeof query.keyword === "string") keyword.value = query.keyword;
   if (typeof query.category === "string") category.value = query.category;
+  if (typeof query.campus === "string") campus.value = query.campus;
   if (typeof query.maxPrice === "string") maxPrice.value = query.maxPrice;
   if (typeof query.type === "string") kind.value = query.type as typeof kind.value;
 }
 
-watch([keyword, category, minPrice, maxPrice, kind, verifiedOnly, sort], () => {
+watch([keyword, category, minPrice, maxPrice, kind, verifiedOnly, campus, sort], () => {
   clearTimeout(debounceHandle);
   debounceHandle = setTimeout(search, 250);
 });
@@ -298,7 +351,7 @@ onMounted(() => {
     <div class="relative -mx-4 -mt-6 overflow-hidden bg-hero px-5 pb-10 pt-12 sm:mt-0 text-white sm:mx-0 sm:rounded-[28px] sm:px-10 sm:pt-16 lg:px-14">
       <div class="bg-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top_right,black,transparent_70%)]"></div>
 
-      <div class="relative grid items-center gap-10 lg:grid-cols-[1.15fr_1fr]">
+      <div class="relative grid grid-cols-1 items-center gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <div class="animate-fade-up">
           <template v-if="!auth.isAuthenticated">
             <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-sky-blue backdrop-blur">
@@ -326,9 +379,9 @@ onMounted(() => {
               type="search"
               aria-label="Search listings"
               placeholder="Try “poster printing” or “braids”"
-              class="h-11 min-w-0 flex-1 bg-transparent text-sm text-charcoal placeholder:text-slate-400 focus:outline-none sm:text-base"
+              class="h-11 w-full min-w-0 flex-1 bg-transparent text-sm text-charcoal placeholder:text-slate-400 focus:outline-none sm:text-base"
             />
-            <button type="submit" class="btn-accent h-11 shrink-0 rounded-xl px-5">Search</button>
+            <button type="submit" class="btn-accent h-11 shrink-0 rounded-xl px-4 sm:px-5">Search</button>
           </form>
 
           <div class="mt-4 flex flex-wrap items-center gap-2">
@@ -427,7 +480,7 @@ onMounted(() => {
 
     <!-- ============ Guest: how it works + featured sellers ============ -->
     <template v-if="!auth.isAuthenticated">
-      <div class="grid gap-5 md:grid-cols-3">
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
         <div v-for="(step, i) in STEPS" :key="step.title" class="card relative overflow-hidden">
           <span class="absolute right-4 top-3 font-display text-5xl font-bold text-navy-50">{{ i + 1 }}</span>
           <span class="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-uni-navy to-teal-500 text-white shadow-lift">
@@ -485,7 +538,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside class="h-fit space-y-6 lg:sticky lg:top-24" :class="mobileFiltersOpen ? 'card block animate-fade-up' : 'hidden lg:block'">
           <div class="relative">
             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -531,6 +584,28 @@ onMounted(() => {
                 </div>
               </template>
             </div>
+          </div>
+
+          <div>
+            <p class="filter-heading">Campus</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button
+                v-if="auth.user?.campus"
+                class="chip"
+                :class="{ 'chip-active': campus === auth.user.campus }"
+                :aria-pressed="campus === auth.user.campus"
+                @click="campus = campus === auth.user.campus ? '' : auth.user.campus"
+              >
+                <MapPin class="h-3.5 w-3.5" /> Near me
+              </button>
+              <button class="chip" :class="{ 'chip-active': campus === '' }" @click="campus = ''">All campuses</button>
+              <button v-for="c in campuses" :key="c.key" class="chip" :class="{ 'chip-active': campus === c.key }" @click="campus = c.key">
+                {{ c.label }}
+              </button>
+            </div>
+            <p v-if="!auth.user?.campus && auth.isAuthenticated" class="mt-2 text-[11px] text-medium-grey">
+              <RouterLink to="/account" class="link">Set your campus</RouterLink> to see what's near you in one tap.
+            </p>
           </div>
 
           <div>
@@ -594,7 +669,7 @@ onMounted(() => {
               {{ chip.label }} <X class="h-3 w-3" />
             </button>
             <button
-              v-if="auth.isAuthenticated && hasActiveFilters"
+              v-if="auth.isAuthenticated && !auth.isAdmin && hasActiveFilters"
               class="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-teal-600 hover:text-teal-700 disabled:opacity-50"
               :disabled="savingSearch"
               @click="saveSearch"
@@ -610,7 +685,7 @@ onMounted(() => {
 
           <p v-if="error" class="rounded-control border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">{{ error }}</p>
 
-          <div v-else-if="loading" class="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
+          <div v-else-if="loading" class="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3 3xl:grid-cols-4">
             <SkeletonCard v-for="n in 6" :key="n" />
           </div>
 
@@ -623,8 +698,14 @@ onMounted(() => {
             <button class="btn-secondary" @click="clearFilters">Clear filters</button>
           </EmptyState>
 
-          <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
+          <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3 3xl:grid-cols-4">
             <ListingCard v-for="listing in listings" :key="listing.id" :listing="listing" />
+          </div>
+          <div v-if="!loading && listings.length > 0" ref="sentinel" class="flex flex-col items-center gap-2 pt-2">
+            <button v-if="hasNext" class="btn-secondary px-6" :disabled="loadingMore" @click="loadMore">
+              {{ loadingMore ? "Loading…" : "Load more" }}
+            </button>
+            <p class="text-xs text-medium-grey">Showing {{ listings.length.toLocaleString("en-ZA") }} of {{ resultsLabel }}</p>
           </div>
         </div>
       </div>
@@ -632,7 +713,7 @@ onMounted(() => {
 
     <!-- ============ Seller CTA ============ -->
     <div
-      v-if="!auth.isSeller"
+      v-if="!auth.isSeller && !auth.isAdmin"
       class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-gold-50 via-white to-teal-50 px-6 py-10 ring-1 ring-light-grey sm:px-12"
     >
       <div class="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-teal-200/30 blur-3xl"></div>

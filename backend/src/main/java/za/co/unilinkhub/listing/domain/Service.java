@@ -25,8 +25,10 @@ public class Service extends Listing {
     }
 
     public static Service create(UUID businessId, String name, String description, String category,
-                                  BigDecimal price, Integer durationMinutes, String availabilitySchedule) {
-        return new Service(businessId, name, description, category, price, durationMinutes, availabilitySchedule);
+                                  BigDecimal price, Integer durationMinutes, String availabilitySchedule, String imageUrl) {
+        Service service = new Service(businessId, name, description, category, price, durationMinutes, availabilitySchedule);
+        service.updateImageUrl(imageUrl);
+        return service;
     }
 
     public void updateSchedule(String availabilitySchedule) {

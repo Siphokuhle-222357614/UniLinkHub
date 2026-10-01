@@ -19,13 +19,15 @@ public record UserResponse(
         boolean seller,
         String suspensionReason,
         List<String> disabledNotificationCategories,
-        LocalDateTime createdAt
+        LocalDateTime sellerRulesAcceptedAt,
+        LocalDateTime createdAt,
+        String campus
 ) {
     public static UserResponse from(UserDTO dto) {
         return new UserResponse(
                 dto.id(), dto.studentNumber(), dto.firstName(), dto.lastName(),
                 dto.email(), dto.pendingEmail(), dto.phoneNumber(), dto.role(), dto.accountStatus(),
-                dto.seller(), dto.suspensionReason(), dto.disabledNotificationCategories(), dto.createdAt()
+                dto.seller(), dto.suspensionReason(), dto.disabledNotificationCategories(), dto.sellerRulesAcceptedAt(), dto.createdAt(), dto.campus()
         );
     }
 }

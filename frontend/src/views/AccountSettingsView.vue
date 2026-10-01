@@ -2,12 +2,15 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
+import { isDark, themePreference, toggleTheme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
 import { useFollowedProvidersStore } from "@/stores/followedProviders";
 import { useToastStore } from "@/stores/toast";
 import { useCategories } from "@/lib/categories";
 import type { BusinessDTO, ListingDTO, ReportSummaryView } from "@/lib/types";
+import ImageUpload from "@/components/ui/ImageUpload.vue";
+import { useCampuses } from "@/lib/campuses";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -17,7 +20,8 @@ const categories = useCategories();
 const toast = useToastStore();
 
 // ---- Profile ----
-const profileForm = ref({ firstName: "", lastName: "", phoneNumber: "" });
+const profileForm = ref({ firstName: "", lastName: "", phoneNumber: "", campus: "" });
+const campuses = useCampuses();
 const savingProfile = ref(false);
 const profileStatus = ref("");
 const profileError = ref("");
@@ -27,6 +31,7 @@ function resetProfileForm() {
     firstName: auth.user?.firstName ?? "",
     lastName: auth.user?.lastName ?? "",
     phoneNumber: auth.user?.phoneNumber ?? "",
+    campus: auth.user?.campus ?? "",
   };
 }
 
@@ -48,7 +53,7 @@ async function saveProfile() {
 // ---- Business ----
 const businesses = ref<BusinessDTO[]>([]);
 const selectedBusinessId = ref("");
-const businessForm = ref({ businessName: "", description: "", category: "", imageUrl: "" });
+const businessForm = ref({ businessName: "", description: "", category: "", imageUrl: "", campus: "", pickupLocation: "" });
 const savingBusiness = ref(false);
 const businessStatus = ref("");
 const businessError = ref("");
@@ -62,6 +67,8 @@ watch(selectedBusiness, (business) => {
       description: business.description,
       category: business.category,
       imageUrl: business.imageUrl ?? "",
+      campus: business.campus ?? "",
+      pickupLocation: business.pickupLocation ?? "",
     };
   }
 });
@@ -196,6 +203,7 @@ const NOTIFICATION_CATEGORIES: { value: string; label: string; description: stri
   { value: "STOCK", label: "Stock & price alerts", description: "When a saved listing restocks, or your stock runs low" },
   { value: "REVIEW", label: "New reviews", description: "When someone reviews your business" },
   { value: "SAVED_SEARCH", label: "Saved search matches", description: "When a new listing matches one of your saved searches" },
+  { value: "POST", label: "Posts & comments", description: "When a business you follow posts, or someone comments on your business's post" },
   { value: "ANNOUNCEMENT", label: "Site announcements", description: "Platform updates sent to your notification bell" },
 ];
 const enabledCategories = ref<Set<string>>(new Set(NOTIFICATION_CATEGORIES.map((c) => c.value)));
@@ -267,7 +275,7 @@ onMounted(async () => {
     <!-- Profile -->
     <div class="card space-y-3">
       <h2 class="font-display text-base font-semibold text-uni-navy">Your profile</h2>
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label class="mb-1 block text-xs font-medium text-medium-grey">First name</label>
           <input v-model="profileForm.firstName" class="input-field" />
@@ -280,9 +288,17 @@ onMounted(async () => {
           <label class="mb-1 block text-xs font-medium text-medium-grey">Email</label>
           <input :value="auth.user?.email" disabled class="input-field bg-soft-grey text-medium-grey" />
         </div>
-        <div class="sm:col-span-2">
+        <div>
           <label class="mb-1 block text-xs font-medium text-medium-grey">Contact number</label>
           <input v-model="profileForm.phoneNumber" class="input-field" />
+        </div>
+        <div v-if="!auth.isAdmin">
+          <label for="profile-campus" class="mb-1 block text-xs font-medium text-medium-grey">Your campus</label>
+          <select id="profile-campus" v-model="profileForm.campus" class="input-field">
+            <option value="">Not set</option>
+            <option v-for="c in campuses" :key="c.key" :value="c.key">{{ c.label }}</option>
+          </select>
+          <p class="mt-1 text-[11px] text-medium-grey">Lets you find things you can collect nearby with one tap.</p>
         </div>
       </div>
       <p v-if="profileError" class="text-sm text-danger">{{ profileError }}</p>
@@ -338,22 +354,9 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <div
-          v-if="businessForm.imageUrl"
-          class="h-16 w-16 shrink-0 rounded-full border border-light-grey bg-cover bg-center"
-          :style="{ backgroundImage: `url(${businessForm.imageUrl})` }"
-        ></div>
-        <div v-else class="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-light-grey bg-soft-grey text-xs text-medium-grey">
-          No logo
-        </div>
-        <div class="flex-1 space-y-1.5">
-          <label class="block text-xs font-medium text-medium-grey">Logo URL <span class="font-normal">(optional)</span></label>
-          <input v-model="businessForm.imageUrl" placeholder="https://..." class="input-field" />
-        </div>
-      </div>
+      <ImageUpload id="business-logo" v-model="businessForm.imageUrl" label="Business logo" shape="logo" />
 
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div class="sm:col-span-2">
           <label class="mb-1 block text-xs font-medium text-medium-grey">Business name</label>
           <input v-model="businessForm.businessName" class="input-field" />
@@ -384,6 +387,17 @@ onMounted(async () => {
           <label class="mb-1 block text-xs font-medium text-medium-grey">Description</label>
           <textarea v-model="businessForm.description" class="input-field" rows="2"></textarea>
         </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-medium-grey">Campus buyers collect from</label>
+          <select v-model="businessForm.campus" class="input-field">
+            <option v-if="!businessForm.campus" value="" disabled>Select campus</option>
+            <option v-for="c in campuses" :key="c.key" :value="c.key">{{ c.label }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-medium text-medium-grey">Pickup spot</label>
+          <input v-model="businessForm.pickupLocation" maxlength="120" class="input-field" placeholder="e.g. Catsville res, Block C" />
+        </div>
       </div>
       <p v-if="businessError" class="text-sm text-danger">{{ businessError }}</p>
       <p v-else-if="businessStatus" class="text-sm text-success">{{ businessStatus }}</p>
@@ -407,11 +421,12 @@ onMounted(async () => {
       <h2 class="font-display text-base font-semibold text-uni-navy">Change email</h2>
       <div v-if="auth.user?.pendingEmail" class="flex items-center gap-2 rounded-control bg-warning/10 p-2.5 text-xs text-charcoal">
         <span class="badge bg-warning/15 text-warning shrink-0">Pending</span>
-        New address {{ auth.user.pendingEmail }} awaiting verification - check the console link to confirm.
+        We've emailed a confirmation link to {{ auth.user.pendingEmail }}. Click it to finish changing your address.
       </div>
       <div>
         <label class="mb-1 block text-xs font-medium text-medium-grey">New email</label>
-        <input v-model="emailForm.newEmail" type="email" placeholder="new.email@mycput.ac.za" class="input-field" />
+        <input v-model="emailForm.newEmail" type="email" :placeholder="auth.isAdmin ? 'new.email@cput.ac.za' : 'new.email@mycput.ac.za'" class="input-field" />
+        <p v-if="!auth.isAdmin" class="mt-1 text-xs text-medium-grey">Student accounts must use a CPUT student address ending in @mycput.ac.za.</p>
       </div>
       <div>
         <label class="mb-1 block text-xs font-medium text-medium-grey">Confirm password</label>
@@ -429,12 +444,12 @@ onMounted(async () => {
     <!-- Change password -->
     <div class="card space-y-3">
       <h2 class="font-display text-base font-semibold text-uni-navy">Change password</h2>
-      <div class="grid gap-3">
+      <div class="grid grid-cols-1 gap-3">
         <div>
           <label class="mb-1 block text-xs font-medium text-medium-grey">Current password</label>
           <input v-model="passwordForm.currentPassword" type="password" class="input-field" />
         </div>
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label class="mb-1 block text-xs font-medium text-medium-grey">New password</label>
             <input v-model="passwordForm.newPassword" type="password" placeholder="At least 8 characters" class="input-field" />
@@ -450,6 +465,46 @@ onMounted(async () => {
       <div class="flex justify-end">
         <button class="btn-primary text-sm" :disabled="savingPassword" @click="savePassword">
           {{ savingPassword ? "Updating..." : "Update password" }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Appearance -->
+    <div class="card space-y-1" aria-labelledby="appearance-title">
+      <h2 id="appearance-title" class="font-display text-base font-semibold text-uni-navy">Appearance</h2>
+      <p class="mb-2 text-sm text-medium-grey">Changes apply straight away and are remembered on this device.</p>
+
+      <div class="flex items-center justify-between gap-4 border-t border-light-grey py-3">
+        <div class="min-w-0">
+          <p id="dark-mode-label" class="text-sm font-medium text-charcoal">Dark mode</p>
+          <p class="text-xs text-medium-grey">Easier on the eyes at night. You can also switch with the moon/sun button at the top of every page.</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          class="switch"
+          :aria-checked="isDark"
+          aria-labelledby="dark-mode-label"
+          @click="toggleTheme"
+        >
+          <span class="switch-thumb"></span>
+        </button>
+      </div>
+
+      <div class="flex items-center justify-between gap-4 border-t border-light-grey py-3">
+        <div class="min-w-0">
+          <p id="match-device-label" class="text-sm font-medium text-charcoal">Match my device</p>
+          <p class="text-xs text-medium-grey">Follow your phone or computer's own light/dark setting automatically.</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          class="switch"
+          :aria-checked="themePreference === 'system'"
+          aria-labelledby="match-device-label"
+          @click="themePreference = themePreference === 'system' ? (isDark ? 'dark' : 'light') : 'system'"
+        >
+          <span class="switch-thumb"></span>
         </button>
       </div>
     </div>
@@ -503,8 +558,8 @@ onMounted(async () => {
       </button>
     </div>
 
-    <div v-if="deactivateConfirmOpen" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="deactivateConfirmOpen = false">
-      <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
+    <div v-if="deactivateConfirmOpen" class="modal-backdrop" @click.self="deactivateConfirmOpen = false">
+      <div v-dialog="() => (deactivateConfirmOpen = false)" class="modal-panel max-w-sm" role="dialog" aria-modal="true" aria-label="Deactivate your account?">
         <h2 class="font-display text-base font-bold text-danger">Deactivate your account?</h2>
         <p class="mt-2 text-sm text-charcoal">
           Your businesses and listings will be hidden from buyers immediately. You can reactivate any time by

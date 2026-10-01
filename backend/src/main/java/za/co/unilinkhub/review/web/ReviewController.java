@@ -17,6 +17,7 @@ import za.co.unilinkhub.review.application.ReviewService;
 import za.co.unilinkhub.review.application.ReviewStatsDTO;
 import za.co.unilinkhub.review.application.ReviewView;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +31,7 @@ public class ReviewController {
     public record ReviewRequest(@Min(1) @Max(5) int rating, String comment) {
     }
 
+    @StudentOnly("write reviews")
     @PostMapping("/api/businesses/{id}/reviews")
     public ReviewView upsert(@CurrentUser UUID reviewerId, @PathVariable UUID id, @Valid @RequestBody ReviewRequest request) {
         return reviewService.upsert(reviewerId, id, request.rating(), request.comment());

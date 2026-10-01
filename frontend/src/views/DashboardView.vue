@@ -28,6 +28,13 @@ import {
   Users,
 } from "@lucide/vue";
 import ListingCard from "@/components/ListingCard.vue";
+import MultiImageUpload from "@/components/ui/MultiImageUpload.vue";
+import { useCampuses } from "@/lib/campuses";
+import FollowingFeed from "@/components/posts/FollowingFeed.vue";
+import RestrictedItemsNotice from "@/components/RestrictedItemsNotice.vue";
+import SellerRulesModal from "@/components/SellerRulesModal.vue";
+import SellerChecklist from "@/components/SellerChecklist.vue";
+import { REASON_LABELS } from "@/lib/reports";
 import SalesAnalytics from "@/components/SalesAnalytics.vue";
 import EmptyState from "@/components/ui/EmptyState.vue";
 import { useMessagesStore } from "@/stores/messages";
@@ -67,7 +74,8 @@ const listingsByBusiness = ref<Record<string, ListingDTO[]>>({});
 const error = ref("");
 const becomingSeller = ref(false);
 
-const newBusiness = ref({ businessName: "", description: "", category: "" });
+const newBusiness = ref({ businessName: "", description: "", category: "", campus: "", pickupLocation: "" });
+const campuses = useCampuses();
 const creatingBusiness = ref(false);
 
 const newListing = ref({
@@ -78,7 +86,7 @@ const newListing = ref({
   category: "",
   price: 0,
   stockQuantity: 1,
-  imageUrl: "",
+  imageUrls: [] as string[],
   durationMinutes: 30,
   availabilitySchedule: "",
 });
@@ -127,7 +135,7 @@ async function loadRecommended() {
   try {
     const savedIds = new Set(saved.listings.map((l) => l.id));
     const results = await Promise.all(
-      favoriteCategories.value.slice(0, 3).map((c) => api.get<ListingDTO[]>("/listings", { params: { category: c, sort: "views" } })),
+      favoriteCategories.value.slice(0, 3).map((c) => api.get<ListingDTO[]>("/listings", { params: { category: c, sort: "views", limit: 8 } })),
     );
     const seen = new Set<string>();
     const combined: ListingDTO[] = [];
@@ -150,13 +158,6 @@ const myReports = ref<ReportSummaryView[]>([]);
 const reportsLoading = ref(false);
 const reportsError = ref("");
 
-const REASON_LABELS: Record<string, string> = {
-  MISREPRESENTATION: "Misrepresentation",
-  NON_DELIVERY: "Non-delivery",
-  INAPPROPRIATE_CONDUCT: "Inappropriate conduct",
-  SPAM: "Spam",
-  OTHER: "Other",
-};
 
 const STATUS_STYLES: Record<ReportStatus, string> = {
   OPEN: "bg-amber-50 text-warning",
@@ -322,17 +323,26 @@ async function loadBusinesses() {
   }
 }
 
-async function becomeSeller() {
-  becomingSeller.value = true;
-  try {
-    await auth.becomeSeller();
-    tab.value = "selling";
-    await loadBusinesses();
-  } catch (err) {
-    error.value = extractErrorMessage(err);
-  } finally {
-    becomingSeller.value = false;
-  }
+// Becoming a seller (or a seller from before the rules existed confirming them) goes through the
+// marketplace rules modal - the backend refuses to unlock selling until they've been accepted.
+const rulesOpen = ref(false);
+
+function becomeSeller() {
+  rulesOpen.value = true;
+}
+
+/** Checklist shortcuts: bring a form into view and put the cursor in its first field. */
+function jumpTo(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  el.querySelector<HTMLElement>("input, select, textarea")?.focus({ preventScroll: true });
+}
+
+async function onRulesAccepted() {
+  rulesOpen.value = false;
+  tab.value = "selling";
+  await loadBusinesses();
 }
 
 async function createBusiness() {
@@ -341,7 +351,7 @@ async function createBusiness() {
   try {
     await api.post("/businesses", newBusiness.value);
     toast.success("Business added!", "An admin will review it within a few days.");
-    newBusiness.value = { businessName: "", description: "", category: "" };
+    newBusiness.value = { businessName: "", description: "", category: "", campus: "", pickupLocation: "" };
     await loadBusinesses();
   } catch (err) {
     error.value = extractErrorMessage(err);
@@ -360,12 +370,12 @@ async function createListing() {
       description: newListing.value.description,
       category: newListing.value.category,
       price: newListing.value.price,
+      imageUrls: newListing.value.imageUrls,
     };
     if (newListing.value.kind === "PRODUCT") {
       await api.post("/listings/products", {
         ...payload,
         stockQuantity: newListing.value.stockQuantity,
-        imageUrl: newListing.value.imageUrl || null,
       });
     } else {
       await api.post("/listings/services", {
@@ -375,6 +385,7 @@ async function createListing() {
       });
     }
     toast.success("Listing published!");
+    newListing.value.imageUrls = [];
     newListing.value.name = "";
     newListing.value.description = "";
     newListing.value.category = "";
@@ -414,7 +425,7 @@ const editForm = ref({
   price: 0,
   status: "ACTIVE" as "ACTIVE" | "INACTIVE",
   stockQuantity: 0,
-  imageUrl: "",
+  imageUrls: [] as string[],
   lowStockThreshold: null as number | null,
   durationMinutes: 0,
   availabilitySchedule: "",
@@ -430,7 +441,7 @@ function startEdit(listing: ListingDTO) {
     price: listing.price,
     status: listing.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     stockQuantity: listing.stockQuantity ?? 0,
-    imageUrl: listing.imageUrl ?? "",
+    imageUrls: listing.imageUrls?.length ? [...listing.imageUrls] : listing.imageUrl ? [listing.imageUrl] : [],
     lowStockThreshold: listing.lowStockThreshold,
     durationMinutes: listing.durationMinutes ?? 0,
     availabilitySchedule: listing.availabilitySchedule ?? "",
@@ -452,7 +463,7 @@ async function saveEdit(listing: ListingDTO) {
       price: editForm.value.price,
       status: editForm.value.status,
       stockQuantity: listing.type === "PRODUCT" ? editForm.value.stockQuantity : undefined,
-      imageUrl: listing.type === "PRODUCT" ? editForm.value.imageUrl : undefined,
+      imageUrls: editForm.value.imageUrls,
       lowStockThreshold: listing.type === "PRODUCT" ? editForm.value.lowStockThreshold : undefined,
       durationMinutes: listing.type === "SERVICE" ? editForm.value.durationMinutes : undefined,
       availabilitySchedule: listing.type === "SERVICE" ? editForm.value.availabilitySchedule : undefined,
@@ -530,6 +541,8 @@ onMounted(async () => {
 
     <!-- ================= BUYING ================= -->
     <div v-show="tab === 'buying'" class="space-y-10">
+      <FollowingFeed />
+
       <!-- Saved listings -->
       <div>
         <div class="mb-4 flex items-center justify-between">
@@ -547,7 +560,7 @@ onMounted(async () => {
         <EmptyState v-if="saved.listings.length === 0" :icon="Heart" title="Nothing saved yet" description="Tap the heart on any listing to keep it here for later.">
           <RouterLink to="/" class="btn-secondary">Explore listings</RouterLink>
         </EmptyState>
-        <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+        <div v-else class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4 3xl:grid-cols-5">
           <div v-for="listing in saved.listings" :key="listing.id" class="relative">
             <button
               v-if="savedSelectMode"
@@ -579,7 +592,7 @@ onMounted(async () => {
       <div v-if="recommended.length > 0">
         <h2 class="section-title flex items-center gap-2"><Sparkles class="h-5 w-5 text-gold-500" /> Recommended for you</h2>
         <p class="mb-4 mt-1 text-xs text-medium-grey">Based on what you've saved and followed: {{ favoriteCategories.join(", ") }}</p>
-        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4 3xl:grid-cols-5">
           <ListingCard v-for="listing in recommended" :key="listing.id" :listing="listing" />
         </div>
       </div>
@@ -613,7 +626,7 @@ onMounted(async () => {
           <h2 class="section-title flex items-center gap-2"><History class="h-5 w-5 text-medium-grey" /> Recently viewed</h2>
           <RouterLink to="/recently-viewed" class="link text-xs">View all</RouterLink>
         </div>
-        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4 3xl:grid-cols-5">
           <ListingCard v-for="listing in recentlyViewed.slice(0, 4)" :key="listing.id" :listing="listing" />
         </div>
       </div>
@@ -655,9 +668,23 @@ onMounted(async () => {
 
     <!-- ================= SELLING ================= -->
     <div v-if="auth.isSeller" v-show="tab === 'selling'" class="space-y-8">
+      <div v-if="!auth.user?.sellerRulesAcceptedAt" class="flex flex-col gap-3 rounded-card border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-amber-900">
+          <span class="font-semibold">Please review the marketplace rules.</span> Every seller now agrees to them before adding a business -
+          they cover what can't be sold and what happens if someone does.
+        </p>
+        <button class="btn-primary shrink-0" @click="becomeSeller">Review &amp; accept</button>
+      </div>
+      <SellerChecklist
+        :businesses="businesses"
+        :listings-by-business="listingsByBusiness"
+        @accept-rules="becomeSeller"
+        @add-business="jumpTo('add-business-form')"
+        @add-listing="jumpTo('new-listing-form')"
+      />
       <SalesAnalytics v-if="businesses.length > 0" :businesses="businesses" />
 
-      <div v-if="sellerBookings.length > 0 || pendingQuestions.length > 0" class="grid gap-6 lg:grid-cols-2">
+      <div v-if="sellerBookings.length > 0 || pendingQuestions.length > 0" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <!-- Booking requests -->
         <div v-if="sellerBookings.length > 0" class="card space-y-4">
           <div class="flex items-center justify-between">
@@ -790,6 +817,9 @@ onMounted(async () => {
                   </RouterLink>
                   <p class="flex flex-wrap items-center gap-2 text-xs text-medium-grey">
                     {{ LISTING_STATUS_LABELS[listing.status] ?? listing.status }} · {{ listing.viewCount }} views
+                    <span v-if="listing.takenDownAt" class="badge bg-red-50 text-danger" :title="listing.takedownReason ?? ''">
+                      Removed by an admin: {{ listing.takedownReason }}
+                    </span>
                     <span
                       v-if="listing.type === 'PRODUCT' && listing.status === 'ACTIVE' && listing.lowStockThreshold != null && (listing.stockQuantity ?? 0) <= listing.lowStockThreshold"
                       class="badge bg-amber-50 text-warning"
@@ -802,7 +832,7 @@ onMounted(async () => {
                   <button class="btn-ghost px-2.5 py-1.5 text-xs" @click="startEdit(listing)"><Pencil class="h-3.5 w-3.5" /> Edit</button>
                   <button v-if="listing.status === 'ACTIVE'" class="btn-ghost px-2.5 py-1.5 text-xs hover:text-danger" @click="deactivateListing(listing.id)">Deactivate</button>
                   <button v-else-if="listing.status === 'SOLD_OUT'" class="btn-ghost px-2.5 py-1.5 text-xs text-teal-700" @click="startEdit(listing)">Restock</button>
-                  <button v-else class="btn-ghost px-2.5 py-1.5 text-xs text-success" @click="reactivateListing(listing.id)">Reactivate</button>
+                  <button v-else-if="!listing.takenDownAt" class="btn-ghost px-2.5 py-1.5 text-xs text-success" @click="reactivateListing(listing.id)">Reactivate</button>
                 </div>
               </div>
 
@@ -811,7 +841,7 @@ onMounted(async () => {
                   <span>Editing: {{ listing.name }}</span>
                   <span class="badge bg-navy-50 text-navy-600">{{ listing.type === "PRODUCT" ? "Product" : "Service" }}</span>
                 </div>
-                <div class="grid gap-3 sm:grid-cols-2">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div class="sm:col-span-2"><label class="field-label">Title</label><input v-model="editForm.name" class="input-field" /></div>
                   <div>
                     <label class="field-label">Category</label>
@@ -831,7 +861,6 @@ onMounted(async () => {
                   <div><label class="field-label">Price (ZAR)</label><input v-model.number="editForm.price" type="number" min="0" step="0.01" class="input-field" /></div>
                   <template v-if="listing.type === 'PRODUCT'">
                     <div><label class="field-label">Stock quantity</label><input v-model.number="editForm.stockQuantity" type="number" min="0" class="input-field" /></div>
-                    <div class="sm:col-span-2"><label class="field-label">Image URL (optional)</label><input v-model="editForm.imageUrl" class="input-field" placeholder="https://…" /></div>
                     <div class="sm:col-span-2">
                       <label class="field-label">Low-stock alert threshold (optional)</label>
                       <input v-model.number="editForm.lowStockThreshold" type="number" min="0" class="input-field" placeholder="e.g. 20" />
@@ -842,6 +871,7 @@ onMounted(async () => {
                     <div class="sm:col-span-2"><label class="field-label">Availability</label><input v-model="editForm.availabilitySchedule" class="input-field" placeholder="e.g. Weekdays 2-6pm" /></div>
                   </template>
                 </div>
+                <MultiImageUpload :id="`edit-photo-${listing.id}`" v-model="editForm.imageUrls" />
                 <div class="flex justify-end gap-2">
                   <button class="btn-secondary" @click="cancelEdit">Cancel</button>
                   <button class="btn-primary" :disabled="savingEdit" @click="saveEdit(listing)">{{ savingEdit ? "Saving…" : "Save changes" }}</button>
@@ -852,11 +882,12 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <!-- New listing -->
-        <div v-if="businesses.length > 0" class="card space-y-4">
+        <div v-if="businesses.length > 0" id="new-listing-form" class="card scroll-mt-24 space-y-4">
           <h2 class="section-title flex items-center gap-2"><Plus class="h-5 w-5 text-teal-600" /> New listing</h2>
-          <form class="grid gap-3 sm:grid-cols-2" @submit.prevent="createListing">
+          <RestrictedItemsNotice />
+          <form class="grid grid-cols-1 gap-3 sm:grid-cols-2" @submit.prevent="createListing">
             <div class="sm:col-span-2">
               <label class="field-label">Business</label>
               <select v-model="newListing.businessId" required class="input-field">
@@ -891,18 +922,20 @@ onMounted(async () => {
             <div><label class="field-label">Price (ZAR)</label><input v-model.number="newListing.price" type="number" min="0" step="0.01" required class="input-field" /></div>
             <template v-if="newListing.kind === 'PRODUCT'">
               <div><label class="field-label">Stock quantity</label><input v-model.number="newListing.stockQuantity" type="number" min="0" class="input-field" /></div>
-              <div><label class="field-label">Image URL (optional)</label><input v-model="newListing.imageUrl" class="input-field" placeholder="https://…" /></div>
             </template>
             <template v-else>
               <div><label class="field-label">Duration (minutes)</label><input v-model.number="newListing.durationMinutes" type="number" min="0" class="input-field" /></div>
               <div><label class="field-label">Availability</label><input v-model="newListing.availabilitySchedule" class="input-field" placeholder="e.g. Weekdays 2-6pm" /></div>
             </template>
+            <div class="sm:col-span-2">
+              <MultiImageUpload id="new-listing-photo" v-model="newListing.imageUrls" label="Photos (optional)" />
+            </div>
             <button type="submit" class="btn-primary sm:col-span-2" :disabled="creatingListing">{{ creatingListing ? "Publishing…" : "Publish listing" }}</button>
           </form>
         </div>
 
         <!-- Add business -->
-        <div class="card h-fit space-y-4">
+        <div id="add-business-form" class="card h-fit scroll-mt-24 space-y-4">
           <h2 class="section-title flex items-center gap-2"><Store class="h-5 w-5 text-teal-600" /> Add a business</h2>
           <form class="space-y-3" @submit.prevent="createBusiness">
             <div><label class="field-label">Business name</label><input v-model="newBusiness.businessName" required class="input-field" /></div>
@@ -914,10 +947,22 @@ onMounted(async () => {
               </select>
             </div>
             <div><label class="field-label">Short description</label><input v-model="newBusiness.description" required class="input-field" /></div>
+            <div>
+              <label class="field-label">Campus buyers collect from</label>
+              <select v-model="newBusiness.campus" required class="input-field">
+                <option value="" disabled>Select campus</option>
+                <option v-for="c in campuses" :key="c.key" :value="c.key">{{ c.label }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Pickup spot <span class="font-normal text-medium-grey">(optional)</span></label>
+              <input v-model="newBusiness.pickupLocation" maxlength="120" class="input-field" placeholder="e.g. Catsville res, Block C" />
+            </div>
             <button type="submit" class="btn-secondary w-full" :disabled="creatingBusiness">{{ creatingBusiness ? "Adding…" : "Add business" }}</button>
           </form>
         </div>
       </div>
     </div>
+    <SellerRulesModal v-if="rulesOpen" @close="rulesOpen = false" @accepted="onRulesAccepted" />
   </section>
 </template>

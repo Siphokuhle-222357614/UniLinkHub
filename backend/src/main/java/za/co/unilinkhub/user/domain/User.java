@@ -1,6 +1,7 @@
 package za.co.unilinkhub.user.domain;
 
 import jakarta.persistence.Column;
+import za.co.unilinkhub.shared.domain.Campus;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -34,7 +35,8 @@ public class User {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "student_number", nullable = false, length = 32)
+    /** Null for admin accounts - admins are staff, created by invitation, not CPUT students. */
+    @Column(name = "student_number", length = 32)
     private String studentNumber;
 
     @Column(name = "first_name", nullable = false, length = 100)
@@ -66,8 +68,14 @@ public class User {
     @Column(name = "verification_token", length = 64)
     private String verificationToken;
 
+    @Column(name = "verification_token_expires_at")
+    private LocalDateTime verificationTokenExpiresAt;
+
     @Column(name = "password_reset_token", length = 64)
     private String passwordResetToken;
+
+    @Column(name = "password_reset_token_expires_at")
+    private LocalDateTime passwordResetTokenExpiresAt;
 
     @Column(name = "pending_email", length = 254)
     private String pendingEmail;
@@ -77,6 +85,15 @@ public class User {
 
     @Column(name = "suspension_reason", length = 1000)
     private String suspensionReason;
+
+    /** When this student agreed to the marketplace rules (no alcohol, drugs, weapons...) before selling. */
+    @Column(name = "seller_rules_accepted_at")
+    private LocalDateTime sellerRulesAcceptedAt;
+
+    /** The student's home campus, used to suggest listings they can actually collect. Optional. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Campus campus;
 
     /**
      * Comma-separated notification categories this user has turned OFF (e.g. "ANNOUNCEMENT").
@@ -90,42 +107,71 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    private User(String studentNumber, String firstName, String lastName, String email,
-                  String passwordHash, String verificationToken) {
+    private User(String studentNumber, String firstName, String lastName, String email, String passwordHash) {
         this.studentNumber = studentNumber;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.passwordHash = passwordHash;
-        this.verificationToken = verificationToken;
     }
 
-    public static User register(String studentNumber, String firstName, String lastName,
-                                 String email, String passwordHash, String verificationToken) {
-        return new User(studentNumber, firstName, lastName, email, passwordHash, verificationToken);
+    /** A student signing themselves up - inactive until they click the link sent to their email. */
+    public static User register(String studentNumber, String firstName, String lastName, String email,
+                                 String passwordHash, String verificationToken, LocalDateTime tokenExpiresAt) {
+        User user = new User(studentNumber, firstName, lastName, email, passwordHash);
+        user.verificationToken = verificationToken;
+        user.verificationTokenExpiresAt = tokenExpiresAt;
+        return user;
     }
 
-    public void verifyEmail(String token) {
+    /**
+     * An admin account, created by another admin (or the startup bootstrap). It's a separate account
+     * from any student account: no student number, never a seller. Its email is proven by the
+     * invite link, so it starts ACTIVE with an unusable password until the invitee sets one.
+     */
+    public static User createAdmin(String firstName, String lastName, String email, String passwordHash) {
+        User user = new User(null, firstName, lastName, email, passwordHash);
+        user.role = UserRole.ADMIN;
+        user.accountStatus = AccountStatus.ACTIVE;
+        return user;
+    }
+
+    public boolean isAdmin() {
+        return role == UserRole.ADMIN;
+    }
+
+    public void verifyEmail(String token, LocalDateTime now) {
         if (this.accountStatus != AccountStatus.PENDING_VERIFICATION) {
-            throw new IllegalStateException("Account is not pending verification");
+            throw new IllegalStateException("This email address is already verified, so you can log in.");
         }
         if (this.verificationToken == null || !this.verificationToken.equals(token)) {
-            throw new IllegalArgumentException("Invalid verification token");
+            throw new IllegalArgumentException("This verification link isn't valid. Please use the latest link we emailed you, or request a new one.");
+        }
+        if (verificationTokenExpiresAt != null && now.isAfter(verificationTokenExpiresAt)) {
+            throw new IllegalArgumentException("This verification link has expired. Request a new one from the login page - it only takes a second.");
         }
         this.accountStatus = AccountStatus.ACTIVE;
         this.verificationToken = null;
+        this.verificationTokenExpiresAt = null;
     }
 
-    public void approve() {
+    /** Issues a fresh verification link (the old one stops working). */
+    public void renewVerificationToken(String token, LocalDateTime expiresAt) {
         if (this.accountStatus != AccountStatus.PENDING_VERIFICATION) {
-            throw new IllegalStateException("Account is not pending verification");
+            throw new IllegalStateException("This email address is already verified, so you can log in.");
         }
-        this.accountStatus = AccountStatus.ACTIVE;
-        this.verificationToken = null;
+        this.verificationToken = token;
+        this.verificationTokenExpiresAt = expiresAt;
     }
 
-    public void becomeSeller() {
+    public void becomeSeller(LocalDateTime acceptedRulesAt) {
+        if (isAdmin()) {
+            throw new IllegalStateException("Admin accounts can't become sellers.");
+        }
         this.seller = true;
+        if (this.sellerRulesAcceptedAt == null) {
+            this.sellerRulesAcceptedAt = acceptedRulesAt;
+        }
     }
 
     public void suspend(String reason) {
@@ -142,24 +188,25 @@ public class User {
         this.accountStatus = AccountStatus.DEACTIVATED;
     }
 
-    public void promoteToAdmin() {
-        this.role = UserRole.ADMIN;
-    }
-
     public void changePassword(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
     }
 
-    public void requestPasswordReset(String token) {
+    public void requestPasswordReset(String token, LocalDateTime expiresAt) {
         this.passwordResetToken = token;
+        this.passwordResetTokenExpiresAt = expiresAt;
     }
 
-    public void resetPassword(String token, String newPasswordHash) {
+    public void resetPassword(String token, String newPasswordHash, LocalDateTime now) {
         if (this.passwordResetToken == null || !this.passwordResetToken.equals(token)) {
-            throw new IllegalArgumentException("Invalid or expired reset code");
+            throw new IllegalArgumentException("This reset link isn't valid any more - it may have been used already. Please request a new one.");
+        }
+        if (passwordResetTokenExpiresAt != null && now.isAfter(passwordResetTokenExpiresAt)) {
+            throw new IllegalArgumentException("This reset link has expired. Please request a new one - it only takes a second.");
         }
         this.passwordHash = newPasswordHash;
         this.passwordResetToken = null;
+        this.passwordResetTokenExpiresAt = null;
     }
 
     public void requestEmailChange(String newEmail, String token) {
@@ -169,11 +216,20 @@ public class User {
 
     public void confirmEmailChange(String token) {
         if (this.emailChangeToken == null || !this.emailChangeToken.equals(token)) {
-            throw new IllegalArgumentException("Invalid or expired email change link");
+            throw new IllegalArgumentException("This email change link isn't valid any more - it may have been used already. Request a new one from your account settings.");
         }
         this.email = this.pendingEmail;
         this.pendingEmail = null;
         this.emailChangeToken = null;
+    }
+
+    /** {@code clearCampus} distinguishes "remove my campus" from "campus not sent". */
+    public void updateCampus(Campus campus, boolean clearCampus) {
+        if (clearCampus) {
+            this.campus = null;
+        } else if (campus != null) {
+            this.campus = campus;
+        }
     }
 
     public void updateProfile(String firstName, String lastName, String phoneNumber) {

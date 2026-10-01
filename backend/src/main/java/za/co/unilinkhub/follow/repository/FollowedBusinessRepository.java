@@ -16,4 +16,6 @@ public interface FollowedBusinessRepository {
     List<FollowedBusiness> findByUserId(UUID userId);
 
     long countByBusinessId(UUID businessId);
+
+    List<FollowedBusiness> findByBusinessId(UUID businessId);
 }

@@ -136,7 +136,7 @@ async function runSearch(q: string) {
   loading.value = true;
   try {
     const [l, p] = await Promise.all([
-      api.get<ListingDTO[]>("/listings", { params: { keyword: q, sort: "views" } }),
+      api.get<ListingDTO[]>("/listings", { params: { keyword: q, sort: "views", limit: 8 } }),
       api.get<ProviderProfileDTO[]>("/businesses", { params: { keyword: q } }),
     ]);
     if (seq !== requestSeq) return; // a newer keystroke already superseded this request
@@ -167,7 +167,6 @@ watch(query, (q) => {
 watch(
   () => palette.open,
   async (open) => {
-    document.body.style.overflow = open ? "hidden" : "";
     if (open) {
       query.value = "";
       active.value = 0;
@@ -228,7 +227,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
       class="fixed inset-0 z-[60] flex items-start justify-center bg-navy-950/50 px-3 pt-[10vh] backdrop-blur-sm animate-fade-in sm:px-4"
       @click.self="palette.hide()"
     >
-      <div class="w-full max-w-xl animate-scale-in overflow-hidden rounded-modal bg-white shadow-pop" role="dialog" aria-modal="true" aria-label="Search">
+      <div v-dialog="() => palette.hide()" class="w-full max-w-xl animate-scale-in overflow-hidden rounded-modal bg-white shadow-pop" role="dialog" aria-modal="true" aria-label="Search">
         <div class="flex items-center gap-3 border-b border-light-grey px-4">
           <Search class="h-5 w-5 shrink-0 text-teal-600" />
           <input

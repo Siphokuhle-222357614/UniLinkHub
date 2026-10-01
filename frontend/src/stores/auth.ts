@@ -23,6 +23,7 @@ export const useAuthStore = defineStore("auth", {
       const { data } = await api.post<AuthResponse>("/auth/login", { email, password });
       this.applySession(data);
       useToastStore().success(`Welcome back, ${data.user.firstName}!`);
+      return data.user;
     },
     async register(payload: {
       studentNumber: string;
@@ -32,7 +33,7 @@ export const useAuthStore = defineStore("auth", {
       password: string;
     }) {
       await api.post("/auth/register", payload);
-      useToastStore().success("Account created!", "Check the console log for your verification link.");
+      useToastStore().success("Account created!", "We've emailed you a link to verify your student email.");
     },
     async fetchCurrentUser() {
       if (!this.token) {
@@ -43,16 +44,17 @@ export const useAuthStore = defineStore("auth", {
         const { data } = await api.get<UserResponse>("/users/me");
         this.user = data;
       } catch {
-        this.logout();
+        // The API interceptor already explained a 401 (expired session, suspension...).
+        this.clearSession();
       } finally {
         this.initialized = true;
       }
     },
-    async becomeSeller() {
-      const { data } = await api.post<UserResponse>("/users/me/become-seller");
+    async becomeSeller(acceptedRules: boolean) {
+      const { data } = await api.post<UserResponse>("/users/me/become-seller", { acceptedRules });
       this.user = data;
     },
-    async updateProfile(payload: { firstName: string; lastName: string; phoneNumber: string }) {
+    async updateProfile(payload: { firstName: string; lastName: string; phoneNumber: string; campus?: string }) {
       const { data } = await api.patch<UserResponse>("/users/me", payload);
       this.user = data;
     },
@@ -61,7 +63,8 @@ export const useAuthStore = defineStore("auth", {
       this.user = auth.user;
       setToken(auth.token);
     },
-    logout() {
+    /** Forget the session without announcing it (the caller explains why, if needed). */
+    clearSession() {
       this.token = null;
       this.user = null;
       setToken(null);
@@ -69,6 +72,9 @@ export const useAuthStore = defineStore("auth", {
       useFollowedProvidersStore().reset();
       useNotificationsStore().reset();
       useMessagesStore().reset();
+    },
+    logout() {
+      this.clearSession();
       useToastStore().info("Signed out", "See you next time!");
     },
   },

@@ -101,7 +101,7 @@ public class ReportService {
 
     private Report findReport(UUID id) {
         return reportRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Report not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that report."));
     }
 
     private ReportSummaryView toSummaryView(Report report) {

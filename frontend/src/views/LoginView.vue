@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { CircleAlert, LogIn } from "@lucide/vue";
+import { CircleAlert, LogIn, MailCheck } from "@lucide/vue";
 import { useAuthStore } from "@/stores/auth";
-import { extractErrorMessage } from "@/lib/api";
+import { api, extractErrorCode, extractErrorMessage } from "@/lib/api";
 import AuthLayout from "@/components/AuthLayout.vue";
 import PasswordInput from "@/components/ui/PasswordInput.vue";
 
@@ -14,19 +14,36 @@ const route = useRoute();
 const email = ref("");
 const password = ref("");
 const error = ref("");
+const errorCode = ref<string | undefined>();
 const loading = ref(false);
+const resending = ref(false);
+const resent = ref(false);
 
 async function submit() {
   loading.value = true;
   error.value = "";
+  errorCode.value = undefined;
+  resent.value = false;
   try {
-    await auth.login(email.value, password.value);
-    const redirect = (route.query.redirect as string) || "/dashboard";
-    router.push(redirect);
+    const user = await auth.login(email.value, password.value);
+    // Admin accounts run the marketplace from the console; students go back where they were.
+    const fallback = user.role === "ADMIN" ? "/admin" : "/dashboard";
+    router.push((route.query.redirect as string) || fallback);
   } catch (err) {
     error.value = extractErrorMessage(err);
+    errorCode.value = extractErrorCode(err);
   } finally {
     loading.value = false;
+  }
+}
+
+async function resendVerification() {
+  resending.value = true;
+  try {
+    await api.post("/auth/resend-verification", { email: email.value });
+    resent.value = true;
+  } finally {
+    resending.value = false;
   }
 }
 </script>
@@ -46,9 +63,21 @@ async function submit() {
         <PasswordInput id="login-password" v-model="password" autocomplete="current-password" placeholder="••••••••" />
       </div>
 
-      <p v-if="error" class="flex items-start gap-2 rounded-control border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-danger">
-        <CircleAlert class="mt-0.5 h-4 w-4 shrink-0" /> {{ error }}
-      </p>
+      <div v-if="error" class="rounded-control border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-danger" role="alert">
+        <p class="flex items-start gap-2"><CircleAlert class="mt-0.5 h-4 w-4 shrink-0" /> {{ error }}</p>
+        <button
+          v-if="errorCode === 'EMAIL_NOT_VERIFIED' && !resent"
+          type="button"
+          class="btn-secondary mt-2.5 w-full py-2 text-xs"
+          :disabled="resending"
+          @click="resendVerification"
+        >
+          {{ resending ? "Sending…" : "Email me a new verification link" }}
+        </button>
+        <p v-if="resent" class="mt-2.5 flex items-start gap-2 text-emerald-700">
+          <MailCheck class="mt-0.5 h-4 w-4 shrink-0" /> Sent! Check your inbox (and spam folder) for the new link.
+        </p>
+      </div>
 
       <button type="submit" class="btn-primary w-full py-3" :disabled="loading">
         <span v-if="loading" class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>

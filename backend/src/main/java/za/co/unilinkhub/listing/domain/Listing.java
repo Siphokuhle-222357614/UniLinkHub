@@ -1,6 +1,12 @@
 package za.co.unilinkhub.listing.domain;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
+import org.hibernate.annotations.BatchSize;
 import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.DiscriminatorType;
 import jakarta.persistence.Entity;
@@ -18,6 +24,8 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -60,6 +68,29 @@ public abstract class Listing {
     @Column(name = "view_count", nullable = false)
     private long viewCount = 0;
 
+    /** The cover photo - always the first of {@link #photos}. Kept as its own column so older code and data still work. */
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    /** Up to {@value #MAX_PHOTOS} photos in display order. Empty for listings from before galleries existed. */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "listing_photos", joinColumns = @JoinColumn(name = "listing_id"))
+    @OrderColumn(name = "position")
+    @Column(name = "url", nullable = false)
+    @BatchSize(size = 50)
+    private List<String> photos = new ArrayList<>();
+
+    /**
+     * Set when an admin removes this listing for breaking the marketplace rules. While set, the
+     * listing stays hidden from everyone but its owner and admins - the seller can't switch it
+     * back on, and restocking it doesn't make it visible again. Only an admin can restore it.
+     */
+    @Column(name = "takedown_reason", length = 1000)
+    private String takedownReason;
+
+    @Column(name = "taken_down_at")
+    private LocalDateTime takenDownAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -87,16 +118,57 @@ public abstract class Listing {
         }
     }
 
+    public static final int MAX_PHOTOS = 6;
+
+    /** A single photo (the older one-image API): becomes the whole gallery. */
+    public void updateImageUrl(String imageUrl) {
+        updatePhotos(imageUrl == null ? List.of() : List.of(imageUrl));
+    }
+
+    public void updatePhotos(List<String> urls) {
+        this.photos.clear();
+        this.photos.addAll(urls);
+        this.imageUrl = urls.isEmpty() ? null : urls.get(0);
+    }
+
+    /** The gallery to show: the photos, or just the cover for listings from before galleries existed. */
+    public List<String> getGallery() {
+        if (!photos.isEmpty()) {
+            return List.copyOf(photos);
+        }
+        return imageUrl == null ? List.of() : List.of(imageUrl);
+    }
+
     public void deactivate() {
         this.status = ListingStatus.INACTIVE;
     }
 
     public void reactivate() {
-        this.status = ListingStatus.ACTIVE;
+        if (!isTakenDown()) {
+            this.status = ListingStatus.ACTIVE;
+        }
     }
 
     public void markSoldOut() {
-        this.status = ListingStatus.SOLD_OUT;
+        if (!isTakenDown()) {
+            this.status = ListingStatus.SOLD_OUT;
+        }
+    }
+
+    public boolean isTakenDown() {
+        return takenDownAt != null;
+    }
+
+    public void takeDown(String reason, LocalDateTime when) {
+        this.takedownReason = reason;
+        this.takenDownAt = when;
+        this.status = ListingStatus.INACTIVE;
+    }
+
+    /** Admin undoes a take-down. The listing comes back hidden; the seller decides when to show it again. */
+    public void restoreAfterTakedown() {
+        this.takedownReason = null;
+        this.takenDownAt = null;
     }
 
     public void recordView() {

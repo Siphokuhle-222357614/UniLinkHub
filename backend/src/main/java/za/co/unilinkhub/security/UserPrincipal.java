@@ -6,6 +6,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import za.co.unilinkhub.user.domain.AccountStatus;
 import za.co.unilinkhub.user.domain.User;
+import za.co.unilinkhub.user.domain.UserRole;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,6 +24,8 @@ public class UserPrincipal implements UserDetails {
     private final String passwordHash;
     private final AccountStatus accountStatus;
     private final boolean seller;
+    private final boolean admin;
+    private final String suspensionReason;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(User user) {
@@ -31,6 +34,8 @@ public class UserPrincipal implements UserDetails {
         this.passwordHash = user.getPasswordHash();
         this.accountStatus = user.getAccountStatus();
         this.seller = user.isSeller();
+        this.admin = user.getRole() == UserRole.ADMIN;
+        this.suspensionReason = user.getSuspensionReason();
         this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 

@@ -1,5 +1,6 @@
 package za.co.unilinkhub.booking.application;
 
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import za.co.unilinkhub.booking.domain.Booking;
 import za.co.unilinkhub.booking.domain.BookingStatus;
@@ -7,8 +8,8 @@ import za.co.unilinkhub.booking.repository.BookingRepository;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.BadRequestException;
+import za.co.unilinkhub.listing.domain.ListingStatus;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.domain.Service;
 import za.co.unilinkhub.listing.repository.ListingRepository;
@@ -35,12 +36,22 @@ public class BookingService {
 
     public BookingSummaryView request(UUID buyerId, UUID listingId, LocalDateTime preferredAt, String note) {
         Listing listing = listingRepository.findById(listingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that listing. It may have been removed by the seller."));
         if (!(listing instanceof Service)) {
-            throw new BadRequestException("Only service listings can be booked");
+            throw new BadRequestException("Only services can be booked. To get a product, add it to your cart instead.");
         }
         Business business = businessRepository.findById(listing.getBusinessId())
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
+        if (business.getOwnerId().equals(buyerId)) {
+            throw new ForbiddenException("You can't book your own service.");
+        }
+        if (listing.getStatus() != ListingStatus.ACTIVE || listing.isTakenDown()) {
+            throw new BadRequestException("\"" + listing.getName() + "\" isn't taking bookings right now. Please check back later "
+                    + "or message the seller.");
+        }
+        if (preferredAt != null && preferredAt.isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Please choose a date and time in the future for your booking.");
+        }
 
         Booking booking = Booking.request(listingId, business.getId(), buyerId, preferredAt, note);
         Booking saved = bookingRepository.save(booking);
@@ -117,11 +128,11 @@ public class BookingService {
 
     private Booking findOwned(UUID bookingId, UUID sellerId) {
         Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that booking. It may have been removed."));
         Business business = businessRepository.findById(booking.getBusinessId())
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
         if (!business.getOwnerId().equals(sellerId)) {
-            throw new UnauthorizedException("You do not own this business");
+            throw new ForbiddenException("Only the owner of this business can do this. You can only manage businesses you created yourself.");
         }
         return booking;
     }

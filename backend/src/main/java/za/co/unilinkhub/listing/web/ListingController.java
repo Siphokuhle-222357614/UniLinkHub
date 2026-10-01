@@ -16,10 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import za.co.unilinkhub.common.web.PageResponse;
 import za.co.unilinkhub.listing.application.ListingDTO;
 import za.co.unilinkhub.listing.application.ListingService;
 import za.co.unilinkhub.saved.application.SavedListingService;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 import za.co.unilinkhub.stockalert.application.StockAlertService;
 
 import java.math.BigDecimal;
@@ -39,48 +41,54 @@ public class ListingController {
     public record CreateProductRequest(
             @NotNull UUID businessId, @NotBlank String name, @NotBlank String description,
             @NotBlank String category, @NotNull @Positive BigDecimal price,
-            Integer stockQuantity, String imageUrl
+            Integer stockQuantity, String imageUrl, List<String> imageUrls
     ) {
     }
 
     public record CreateServiceRequest(
             @NotNull UUID businessId, @NotBlank String name, @NotBlank String description,
             @NotBlank String category, @NotNull @Positive BigDecimal price,
-            Integer durationMinutes, String availabilitySchedule
+            Integer durationMinutes, String availabilitySchedule, String imageUrl, List<String> imageUrls
     ) {
     }
 
     public record UpdateListingRequest(String name, String description, String category, BigDecimal price,
-                                        Integer stockQuantity, String imageUrl, Integer lowStockThreshold,
+                                        Integer stockQuantity, String imageUrl, List<String> imageUrls, Integer lowStockThreshold,
                                         Integer durationMinutes, String availabilitySchedule, String status) {
     }
 
+    @StudentOnly("create listings")
     @PostMapping("/products")
     @ResponseStatus(HttpStatus.CREATED)
     public ListingDTO createProduct(@CurrentUser UUID userId, @Valid @RequestBody CreateProductRequest request) {
         return listingService.createProduct(userId, request.businessId(), request.name(), request.description(),
-                request.category(), request.price(), request.stockQuantity(), request.imageUrl());
+                request.category(), request.price(), request.stockQuantity(), request.imageUrl(), request.imageUrls());
     }
 
+    @StudentOnly("create listings")
     @PostMapping("/services")
     @ResponseStatus(HttpStatus.CREATED)
     public ListingDTO createService(@CurrentUser UUID userId, @Valid @RequestBody CreateServiceRequest request) {
         return listingService.createService(userId, request.businessId(), request.name(), request.description(),
-                request.category(), request.price(), request.durationMinutes(), request.availabilitySchedule());
+                request.category(), request.price(), request.durationMinutes(), request.availabilitySchedule(),
+                request.imageUrl(), request.imageUrls());
     }
 
+    @StudentOnly("edit listings")
     @PatchMapping("/{id}")
     public ListingDTO update(@CurrentUser UUID userId, @PathVariable UUID id, @RequestBody UpdateListingRequest request) {
         return listingService.update(userId, id, request.name(), request.description(), request.category(),
-                request.price(), request.stockQuantity(), request.imageUrl(), request.lowStockThreshold(),
+                request.price(), request.stockQuantity(), request.imageUrl(), request.imageUrls(), request.lowStockThreshold(),
                 request.durationMinutes(), request.availabilitySchedule(), request.status());
     }
 
+    @StudentOnly("manage listings")
     @PostMapping("/{id}/deactivate")
     public void deactivate(@CurrentUser UUID userId, @PathVariable UUID id) {
         listingService.deactivate(userId, id);
     }
 
+    @StudentOnly("manage listings")
     @PostMapping("/{id}/reactivate")
     public void reactivate(@CurrentUser UUID userId, @PathVariable UUID id) {
         listingService.reactivate(userId, id);
@@ -99,8 +107,30 @@ public class ListingController {
                                     @RequestParam(required = false) BigDecimal maxPrice,
                                     @RequestParam(required = false) String type,
                                     @RequestParam(defaultValue = "false") boolean verifiedOnly,
-                                    @RequestParam(required = false) String sort) {
-        return listingService.search(category, keyword, minPrice, maxPrice, type, verifiedOnly, sort);
+                                    @RequestParam(required = false) String campus,
+                                    @RequestParam(required = false) String sort,
+                                    @RequestParam(defaultValue = "24") int limit) {
+        return listingService.search(category, keyword, minPrice, maxPrice, type, verifiedOnly, campus, sort, limit);
+    }
+
+    /** Browse with paging: ?page=0&size=24 plus the same filters as above. */
+    @GetMapping("/search")
+    public PageResponse<ListingDTO> searchPage(@RequestParam(required = false) String category,
+                                               @RequestParam(required = false) String keyword,
+                                               @RequestParam(required = false) BigDecimal minPrice,
+                                               @RequestParam(required = false) BigDecimal maxPrice,
+                                               @RequestParam(required = false) String type,
+                                               @RequestParam(defaultValue = "false") boolean verifiedOnly,
+                                               @RequestParam(required = false) String campus,
+                                               @RequestParam(required = false) String sort,
+                                               @RequestParam(defaultValue = "0") int page,
+                                               @RequestParam(defaultValue = "24") int size) {
+        return listingService.searchPage(category, keyword, minPrice, maxPrice, type, verifiedOnly, campus, sort, page, size);
+    }
+
+    @GetMapping("/category-counts")
+    public Map<String, Long> categoryCounts() {
+        return listingService.categoryCounts();
     }
 
     @GetMapping("/business/{businessId}")
@@ -108,6 +138,7 @@ public class ListingController {
         return listingService.byBusiness(businessId);
     }
 
+    @StudentOnly("save listings")
     @PostMapping("/{id}/save")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void save(@CurrentUser UUID userId, @PathVariable UUID id) {
@@ -130,6 +161,7 @@ public class ListingController {
         return listingService.listMine(userId);
     }
 
+    @StudentOnly("set stock alerts")
     @PostMapping("/{id}/notify-me")
     public Map<String, Boolean> toggleNotifyMe(@CurrentUser UUID userId, @PathVariable UUID id) {
         return Map.of("subscribed", stockAlertService.toggle(userId, id));

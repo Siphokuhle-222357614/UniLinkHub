@@ -20,4 +20,6 @@ public interface OrderRepository {
     List<Order> findAll();
 
     long countByStatus(OrderStatus status);
+
+    long countByBusinessIdAndStatus(UUID businessId, OrderStatus status);
 }

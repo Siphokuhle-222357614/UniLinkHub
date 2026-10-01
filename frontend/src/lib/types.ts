@@ -1,6 +1,7 @@
 export interface UserResponse {
   id: string;
-  studentNumber: string;
+  /** Null for admin accounts - they're staff accounts, not student accounts. */
+  studentNumber: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -11,7 +12,11 @@ export interface UserResponse {
   seller: boolean;
   suspensionReason: string | null;
   disabledNotificationCategories: string[];
+  /** When the student accepted the marketplace rules; null until they become a seller. */
+  sellerRulesAcceptedAt: string | null;
   createdAt: string;
+  /** The student's home campus key (e.g. "BELLVILLE"), or null. */
+  campus: string | null;
 }
 
 export interface AuthResponse {
@@ -29,6 +34,9 @@ export interface BusinessDTO {
   imageUrl: string | null;
   rejectionReason: string | null;
   createdAt: string;
+  campus: string | null;
+  campusLabel: string | null;
+  pickupLocation: string | null;
 }
 
 export interface BusinessStatsDTO {
@@ -56,6 +64,42 @@ export interface ListingDTO {
   availabilitySchedule: string | null;
   createdAt: string;
   savedCount: number;
+  /** Set when an admin took the listing down for breaking the marketplace rules. */
+  takedownReason: string | null;
+  takenDownAt: string | null;
+  /** Gallery in display order; the first is the cover (= imageUrl). */
+  imageUrls: string[];
+  /** Seller details, filled in on browse/detail pages (null elsewhere). */
+  businessName: string | null;
+  campus: string | null;
+  campusLabel: string | null;
+  pickupLocation: string | null;
+  seller: SellerTrust | null;
+}
+
+export interface SellerTrust {
+  businessId: string;
+  verified: boolean;
+  /** Average review rating to one decimal, or null with no reviews yet. */
+  rating: number | null;
+  reviewCount: number;
+  completedOrders: number;
+  /** e.g. "within an hour"; null until there's enough chat history to say. */
+  responseTimeLabel: string | null;
+}
+
+export interface PageResponse<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+}
+
+export interface CampusOption {
+  key: string;
+  label: string;
 }
 
 export interface ReportDTO {
@@ -73,7 +117,7 @@ export interface ReportDTO {
 }
 
 export type ReportStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
-export type ReportReason = "MISREPRESENTATION" | "NON_DELIVERY" | "INAPPROPRIATE_CONDUCT" | "SPAM" | "OTHER";
+export type ReportReason = "MISREPRESENTATION" | "NON_DELIVERY" | "INAPPROPRIATE_CONDUCT" | "SPAM" | "PROHIBITED_ITEM" | "OTHER";
 
 export interface ReporterSummary {
   id: string;
@@ -132,6 +176,9 @@ export interface ProviderProfileDTO {
   activeListingCount: number;
   totalViews: number;
   memberSince: string;
+  campus: string | null;
+  campusLabel: string | null;
+  pickupLocation: string | null;
 }
 
 export interface AdminStatsDTO {
@@ -178,7 +225,9 @@ export type NotificationCategory =
   | "MESSAGE"
   | "ORDER"
   | "QUESTION"
-  | "SAVED_SEARCH";
+  | "SAVED_SEARCH"
+  | "MODERATION"
+  | "POST";
 
 export interface NotificationDTO {
   id: string;
@@ -292,6 +341,10 @@ export interface OrderDTO {
   cancelReason: string | null;
   items: OrderItemDTO[];
   createdAt: string;
+  /** Only present on the buyer's own orders - shown to the seller at handover. */
+  pickupCode: string | null;
+  /** False for orders placed before pickup codes existed. */
+  requiresPickupCode: boolean;
 }
 
 export interface OrderStatsDTO {
@@ -377,4 +430,61 @@ export interface SellerAnalyticsDTO {
   cancelledOrders: number;
   daily: { date: string; revenue: number; orders: number }[];
   topListings: { listingId: string; name: string; unitsSold: number; revenue: number }[];
+}
+
+export interface RestrictedCategory {
+  key: string;
+  label: string;
+  description: string;
+  examples: string[];
+}
+
+export interface AdminListingView {
+  listing: ListingDTO;
+  businessName: string;
+  businessVerificationStatus: "PENDING" | "VERIFIED" | "REJECTED" | null;
+  ownerId: string | null;
+  ownerName: string;
+  ownerEmail: string | null;
+  openReports: number;
+}
+
+export interface UploadedImage {
+  id: string;
+  url: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+export interface PostView {
+  id: string;
+  businessId: string;
+  businessName: string;
+  businessImageUrl: string | null;
+  businessVerified: boolean;
+  body: string | null;
+  imageUrl: string | null;
+  listing: { id: string; name: string; price: number; imageUrl: string | null; category: string; status: string } | null;
+  pinned: boolean;
+  edited: boolean;
+  createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
+  commentCount: number;
+  /** True for the business owner: edit, pin, delete, remove comments. */
+  canManage: boolean;
+  /** Only shown to admins. */
+  flagCount: number;
+  /** Only shown to the owner and admins, once an admin has removed the post. */
+  removedReason: string | null;
+}
+
+export interface CommentView {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+  canDelete: boolean;
 }

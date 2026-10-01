@@ -24,7 +24,8 @@ public class UserRequest {
     public record UpdateProfile(
             String firstName,
             String lastName,
-            String phoneNumber
+            String phoneNumber,
+            String campus
     ) {
     }
 

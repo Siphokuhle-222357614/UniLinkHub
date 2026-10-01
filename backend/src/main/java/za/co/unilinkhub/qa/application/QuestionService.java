@@ -1,12 +1,12 @@
 package za.co.unilinkhub.qa.application;
 
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.audit.application.AuditLogService;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 import za.co.unilinkhub.notification.application.NotificationService;
@@ -32,9 +32,12 @@ public class QuestionService {
 
     public QuestionView ask(UUID askerId, UUID listingId, String questionText) {
         Listing listing = listingRepository.findById(listingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that listing. It may have been removed by the seller."));
         Business business = businessRepository.findById(listing.getBusinessId())
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
+        if (business.getOwnerId().equals(askerId)) {
+            throw new ForbiddenException("You can't ask a question on your own listing. To add details, edit the listing's description instead.");
+        }
 
         Question question = questionRepository.save(Question.ask(listingId, askerId, questionText));
         notificationService.notify(business.getOwnerId(), "QUESTION", "New question on \"" + listing.getName() + "\"");
@@ -86,7 +89,7 @@ public class QuestionService {
 
     public void flag(UUID questionId) {
         Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that question. It may have been removed."));
         question.flag();
         questionRepository.save(question);
     }
@@ -101,7 +104,7 @@ public class QuestionService {
 
     public void adminRemove(UUID questionId, UUID adminId) {
         Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that question. It may have been removed."));
         String listingName = listingRepository.findById(question.getListingId()).map(Listing::getName).orElse("a deleted listing");
         questionRepository.deleteById(questionId);
         String adminName = userRepository.findById(adminId).map(User::getFullName).orElse("Unknown admin");
@@ -125,13 +128,13 @@ public class QuestionService {
 
     private Question findOwned(UUID questionId, UUID sellerId) {
         Question question = questionRepository.findById(questionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Question not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that question. It may have been removed."));
         Listing listing = listingRepository.findById(question.getListingId())
-                .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that listing. It may have been removed by the seller."));
         Business business = businessRepository.findById(listing.getBusinessId())
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
         if (!business.getOwnerId().equals(sellerId)) {
-            throw new UnauthorizedException("You do not own this business");
+            throw new ForbiddenException("Only the owner of this business can do this. You can only manage businesses you created yourself.");
         }
         return question;
     }

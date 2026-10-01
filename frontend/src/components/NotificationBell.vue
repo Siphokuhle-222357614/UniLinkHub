@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { Bell } from "@lucide/vue";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useClickOutside } from "@/composables/useClickOutside";
+import { realtimeConnected } from "@/lib/realtime";
 import { relativeTime } from "@/lib/format";
 import { notificationMeta } from "@/lib/notificationMeta";
 
@@ -29,7 +30,10 @@ function viewAll() {
 
 onMounted(() => {
   notifications.fetchUnreadCount();
-  pollHandle = setInterval(() => notifications.fetchUnreadCount(), 30000);
+  // Live updates arrive over the realtime stream; polling is only the fallback when it's down.
+  pollHandle = setInterval(() => {
+    if (!realtimeConnected.value) notifications.fetchUnreadCount();
+  }, 30000);
 });
 
 onUnmounted(() => {

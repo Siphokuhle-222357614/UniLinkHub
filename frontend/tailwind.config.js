@@ -2,6 +2,17 @@
 export default {
   content: ["./index.html", "./src/**/*.{vue,js,ts,jsx,tsx}"],
   theme: {
+    // Mobile-first: unprefixed classes are for phones, and each breakpoint builds on the one below.
+    // Listed smallest to largest - the order matters, later breakpoints win.
+    screens: {
+      xs: "400px", // large phones
+      sm: "640px", // phones in landscape, small tablets
+      md: "768px", // tablets
+      lg: "1024px", // tablets in landscape, small laptops
+      xl: "1280px", // laptops
+      "2xl": "1536px", // desktops
+      "3xl": "1920px", // large monitors
+    },
     extend: {
       colors: {
         // Brand Identity Standards Manual, Section 3.4 - Colour System. The three brand hues are

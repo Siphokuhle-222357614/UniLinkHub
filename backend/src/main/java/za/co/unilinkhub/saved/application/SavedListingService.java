@@ -23,7 +23,7 @@ public class SavedListingService {
 
     public void save(UUID userId, UUID listingId) {
         if (listingRepository.findById(listingId).isEmpty()) {
-            throw new ResourceNotFoundException("Listing not found");
+            throw new ResourceNotFoundException("We couldn't find that listing. It may have been removed by the seller.");
         }
         if (!savedListingRepository.existsByUserIdAndListingId(userId, listingId)) {
             savedListingRepository.save(SavedListing.create(userId, listingId));

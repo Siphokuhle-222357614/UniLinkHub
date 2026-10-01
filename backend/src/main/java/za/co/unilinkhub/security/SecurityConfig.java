@@ -1,5 +1,6 @@
 package za.co.unilinkhub.security;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +31,7 @@ public class SecurityConfig {
 
     private final AppUserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final SecurityErrorHandlers securityErrorHandlers;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -56,9 +58,20 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // The live event stream (/api/stream) finishes on an async dispatch; the original
+                        // request was already authenticated, so those internal dispatches are allowed.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        // A seller's email and phone number are only for logged-in students - this
+                        // must come before the public GET /api/businesses/** rule below.
+                        .requestMatchers(HttpMethod.GET, "/api/businesses/*/contact").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/listings/**", "/api/businesses/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/images/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/rules/**").permitAll()
+                        // Business posts and their comments are public, like the provider pages they
+                        // sit on. The personal feed (/api/posts/feed) still needs a login.
+                        .requestMatchers(HttpMethod.GET, "/api/posts/*/comments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/categories", "/api/campuses").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/announcements/active").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/stats/public").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
@@ -72,6 +85,9 @@ public class SecurityConfig {
                         .requestMatchers(spaShellMatcher()).permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(eh -> eh
+                        .authenticationEntryPoint(securityErrorHandlers)
+                        .accessDeniedHandler(securityErrorHandlers))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

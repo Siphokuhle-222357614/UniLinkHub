@@ -49,12 +49,12 @@ class MarketplaceSmokeTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accountStatus").value("PENDING_VERIFICATION"));
 
-        // No real mailbox exists in this build (the verification link is only logged to the
-        // console) - approving the account the same way an admin would from the console is the
-        // realistic way to get a freshly-registered account to ACTIVE in a test.
+        // Tests have no mailbox, so read the token the verification email would have carried and
+        // follow the link the same way the student would.
         User user = userRepository.findByEmail(email).orElseThrow();
-        user.approve();
-        userRepository.save(user);
+        mockMvc.perform(get("/api/auth/verify").param("token", user.getVerificationToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountStatus").value("ACTIVE"));
 
         String loginBody = """
                 {"email":"%s","password":"Smoke@1234"}
@@ -79,14 +79,15 @@ class MarketplaceSmokeTest {
         String sellerToken = registerAndLogin("smoke.seller@mycput.ac.za", "990000001", "Seller");
         String buyerToken = registerAndLogin("smoke.buyer@mycput.ac.za", "990000002", "Buyer");
 
-        mockMvc.perform(post("/api/users/me/become-seller").header("Authorization", "Bearer " + sellerToken))
+        mockMvc.perform(post("/api/users/me/become-seller").header("Authorization", "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"acceptedRules\":true}"))
                 .andExpect(status().isOk());
 
         String businessJson = mockMvc.perform(post("/api/businesses")
                         .header("Authorization", "Bearer " + sellerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"businessName":"Smoke Test Store","description":"Smoke test business","category":"Printing"}
+                                {"businessName":"Smoke Test Store","description":"Smoke test business","category":"Printing","campus":"BELLVILLE"}
                                 """))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

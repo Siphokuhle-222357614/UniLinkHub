@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, BadgeCheck, MessageCircle, ShieldCheck } from "@lucide/vue";
 import LogoMark from "@/components/LogoMark.vue";
+import ThemeToggleButton from "@/components/ThemeToggleButton.vue";
 
 defineProps<{ title: string; subtitle?: string }>();
 
@@ -14,16 +15,19 @@ const POINTS = [
 </script>
 
 <template>
-  <div class="grid min-h-screen bg-white lg:grid-cols-2">
+  <div class="grid grid-cols-1 min-h-screen bg-white lg:grid-cols-2">
     <div class="flex flex-col px-5 py-6 sm:px-10">
       <div class="flex items-center justify-between gap-3">
         <RouterLink to="/" class="flex items-center gap-2">
           <LogoMark :size="30" />
           <span class="font-display text-lg font-bold text-uni-navy">Uni<span class="text-teal-500">Link</span>Hub</span>
         </RouterLink>
-        <RouterLink to="/" class="btn-ghost px-3 text-xs">
-          <ArrowLeft class="h-4 w-4" /> <span class="hidden sm:inline">Back to marketplace</span><span class="sm:hidden">Back</span>
-        </RouterLink>
+        <div class="flex items-center gap-1">
+          <ThemeToggleButton />
+          <RouterLink to="/" class="btn-ghost px-3 text-xs">
+            <ArrowLeft class="h-4 w-4" /> <span class="hidden sm:inline">Back to marketplace</span><span class="sm:hidden">Back</span>
+          </RouterLink>
+        </div>
       </div>
 
       <div class="mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-10 animate-fade-up">

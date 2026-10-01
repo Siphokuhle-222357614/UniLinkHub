@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import za.co.unilinkhub.savedsearch.application.SavedSearchDTO;
 import za.co.unilinkhub.savedsearch.application.SavedSearchService;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -34,6 +35,7 @@ public class SavedSearchController {
     public record AlertsRequest(boolean alertsEnabled) {
     }
 
+    @StudentOnly("save searches")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public SavedSearchDTO save(@CurrentUser UUID userId, @Valid @RequestBody SaveRequest request) {

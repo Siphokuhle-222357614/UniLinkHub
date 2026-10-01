@@ -8,7 +8,7 @@ const year = new Date().getFullYear();
 
 <template>
   <footer class="mt-16 border-t border-light-grey bg-white">
-    <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+    <div class="mx-auto grid grid-cols-1 max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1600px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
       <div>
         <RouterLink to="/" class="flex items-center gap-2">
           <LogoMark :size="30" />
@@ -26,6 +26,7 @@ const year = new Date().getFullYear();
           <li><RouterLink to="/providers" class="footer-link">Provider directory</RouterLink></li>
           <li><RouterLink to="/compare" class="footer-link">Compare listings</RouterLink></li>
           <li><RouterLink to="/recently-viewed" class="footer-link">Recently viewed</RouterLink></li>
+          <li><RouterLink to="/marketplace-rules" class="footer-link">Marketplace rules</RouterLink></li>
         </ul>
       </div>
 
@@ -48,7 +49,7 @@ const year = new Date().getFullYear();
       </div>
     </div>
     <div class="border-t border-light-grey">
-      <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-medium-grey sm:flex-row sm:px-6">
+      <div class="mx-auto flex max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1600px] flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-medium-grey sm:flex-row sm:px-6">
         <p>&copy; {{ year }} UniLinkHub. Built by students, for students.</p>
         <p>Payments and pickup are arranged directly between buyer and seller.</p>
       </div>

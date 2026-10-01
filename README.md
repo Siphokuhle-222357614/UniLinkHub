@@ -58,20 +58,19 @@ promo codes, and saved searches with alerts. Real payment processing remains out
 is still the empty stub package it started as - fulfilment and payment are arranged directly
 between buyer and seller on pickup, the same as bookings already worked.
 
-- Student registration + email verification (link is logged to the console — no SMTP
-  provider is wired up yet) and JWT login. As a fallback to that (since there's no real inbox
-  to click the link from), the admin console can also approve a pending account directly.
-- Self-service "Forgot password" flow (request a reset code, then reset with it) — same
-  console-logged-code pattern as email verification, since there's no real email delivery.
-- Self-service "Change email" — password-confirmed, with the new address re-verified via the
-  same console-logged-link pattern before it takes effect.
-- Single-account model: any student can call "Become a Seller" from their dashboard rather
-  than registering a separate seller account.
+- Student registration (CPUT `@mycput.ac.za` addresses only) with **real email verification**:
+  the student clicks the emailed link to activate their own account - admins never approve
+  students by hand. Links expire after 48 hours and can be re-sent from the login page.
+- Self-service "Forgot password" (emailed link, valid for 1 hour) and "Change email"
+  (password-confirmed, the new address confirmed by email before it takes effect).
+- Single-account model for students: any student can "Become a Seller" from their dashboard
+  after accepting the marketplace rules (see below). Admin accounts are separate - see
+  "Accounts, email and marketplace rules".
 - Register/manage a business, request verification, and resubmit for another review if
   rejected (edit details from Account Settings, then resubmit).
 - Create/edit/deactivate/reactivate Product or Service listings, editable inline from the
   dashboard (title, category, description, price, stock/duration/availability, status, and an
-  optional image URL for products) - plus a unified "My listings" table across all of a
+  uploaded photo) - plus a unified "My listings" table across all of a
   seller's businesses.
 - A fixed suggested category taxonomy (`GET /api/categories`) offered as a dropdown everywhere
   a listing or business category is set, so values can't drift into near-duplicates
@@ -92,10 +91,10 @@ between buyer and seller on pickup, the same as bookings already worked.
   verified/rejected, searchable) rather than just a pending queue, expand a business to see
   its submitted listings before deciding, and reject with a reason the seller sees on their
   Account Settings page before resubmitting.
-- Student account management: admin can view/search every account (not just pending ones),
-  approve a pending signup, suspend (with a reason the student sees if they try to log in) or
-  reactivate any student account, promote a student to Admin, and expand an account to see its
-  businesses and the reports it filed/received.
+- Student account management: admin can view/search every student account, re-send a
+  verification email, suspend (with a reason the student sees - and a suspension logs them out
+  immediately) or reactivate an account, and expand an account to see its businesses and the
+  reports it filed/received.
 - Self-service "Deactivate my account" from Account Settings - hides the student's businesses/
   listings immediately, and simply logging back in with the right password reactivates it (no
   admin step needed), reusing the existing DEACTIVATED account status.
@@ -254,9 +253,145 @@ between buyer and seller on pickup, the same as bookings already worked.
 All of the above has been exercised end-to-end against a real MySQL database (see the smoke
 test script below) — it isn't just "compiles", it actually runs.
 
+### Accounts, email and marketplace rules (October 2026)
+
+- **Every rejection explains itself.** Anything the API refuses comes back as one JSON shape with
+  a plain-English `message` saying why (and, where useful, a `code` the UI acts on). A 403 means
+  "you're not allowed to do this" and always says why; 401 only ever means "you're not logged
+  in / your session ended". Covered for controller errors, security-filter rejections, bad links
+  and validation (e.g. "Student number is required.").
+- **Admin accounts are separate from student accounts.** Admins run the marketplace and stay
+  neutral: they can't become sellers, buy, book, review, message sellers, save listings or follow
+  businesses (`@StudentOnly` on those endpoints; the UI hides them too). A student can't be
+  promoted to admin. New admins are invited from the console's *Admin team* tab - they get an
+  email to set their own password - and the very first admin is created from the `ADMIN_EMAIL` /
+  `ADMIN_PASSWORD` environment variables on startup if no admin exists. An admin can't verify a
+  business they own.
+- **Restricted items.** Alcohol, drugs, weapons, cigarettes/vapes/hubbly, cheating services, fake
+  documents/stolen goods and adult content can't be listed. Listings and businesses are checked
+  when saved (`RestrictedItemsPolicy`, whole-word matching with an allow-list so "ginger beer" or
+  "glue gun" are fine) and refused with an explanation of the rule and its consequences. Sellers
+  must accept the rules before selling (the time is recorded), the rules are shown on a public
+  *Marketplace rules* page and on every listing form, students can report a listing as
+  "Restricted or illegal item", and admins can take any listing down from the new *Listings* tab
+  - the seller is notified with the reason, and only an admin can restore it.
+- **Photo uploads** for listings (products and services) and business logos. Photos are resized
+  in the browser, checked by their actual bytes (JPEG/PNG/WebP only - no SVG), capped at 5 MB and
+  stored in the database (so they survive redeploys on hosts with temporary disks).
+- **Honest-trading rules:** sellers can't order from, book, review or ask questions on their own
+  business; reviews need a completed order or accepted booking; cancelling an order puts its stock
+  back; checkouts lock stock rows so two buyers can't both get the last item.
+- **Privacy fixes:** a seller's email/phone (`/api/businesses/{id}/contact`) now needs a login,
+  and full account details (`/api/users/{id}`) are admin-only.
+
+### Business posts (October 2026)
+
+Verified businesses can post updates on their provider page, Facebook-page style: text, a photo,
+and optionally one of their own listings as a tappable card. The provider page now has **Posts /
+Listings / Reviews** tabs, with Posts first.
+
+- Followers are notified of new posts and see them in a *From businesses you follow* feed on their
+  dashboard - so following a business finally does something.
+- Students can like, comment and share (a link that opens the page scrolled to that post). The
+  page owner can pin one post to the top, edit or delete posts, and delete comments on their page.
+- Only the owner of a **verified** business can post, so new accounts can't use posts to spam;
+  posts and comments go through the same restricted-items check as listings; each business can
+  post 10 times per 24 hours (HTTP 429 with an explanation after that).
+- Students can report a post; admins see reported posts first in the console's *Posts* tab and can
+  remove them with a reason the business is shown.
+- API: `GET/POST /api/businesses/{id}/posts`, `PATCH/DELETE /api/posts/{id}`,
+  `POST /api/posts/{id}/pin|like|flag`, `DELETE /api/posts/{id}/like`,
+  `GET/POST /api/posts/{id}/comments`, `DELETE /api/post-comments/{id}`, `GET /api/posts/feed`,
+  `GET /api/admin/posts`, `POST /api/admin/posts/{id}/remove`. Tests: `BusinessPostsTest`.
+
+#### Setting up email
+
+Without `MAIL_HOST`, emails aren't sent - each one is written to the backend log with its full
+link, which is fine for local development. To send real email, set:
+
+| Variable | Example (Gmail) |
+|---|---|
+| `MAIL_HOST` | `smtp.gmail.com` |
+| `MAIL_PORT` | `587` |
+| `MAIL_USERNAME` | `unilinkhub.app@gmail.com` |
+| `MAIL_PASSWORD` | a Gmail **App Password** (Google Account → Security → App passwords), not the normal password |
+| `MAIL_FROM` | `UniLinkHub <unilinkhub.app@gmail.com>` |
+| `APP_BASE_URL` | where the frontend lives, e.g. `https://unilinkhub.onrender.com` - email links point here |
+
+`ALLOWED_EMAIL_DOMAIN` (default `mycput.ac.za`) controls which addresses can sign up.
+
+#### Upgrading a database created before migrations existed
+
+Databases made by the old `ddl-auto=update` setting are adopted automatically: Flyway marks them as
+already at V1 and applies everything after it. If yours is older than some entity changes, start
+the backend **once** with `JPA_DDL_AUTO=update` so Hibernate adds the missing columns, then start
+it normally. Admin accounts also need `student_number` to allow empty values on databases created
+before October 2026:
+
+```sql
+ALTER TABLE unilinkhub.users MODIFY student_number VARCHAR(32) NULL;
+```
+
+### Discovery, trust and real-time (October 2026)
+
+- **Log-in and sign-up abuse limits.** 5 wrong passwords for one account locks log-in for that
+  account for 15 minutes; per-network limits cap failed log-ins, sign-ups and outgoing emails
+  (verification / password reset). Every limit answers with HTTP 429 and a plain-English reason.
+  Tune with `unilinkhub.rate-limits.*` in `application.yml` (`failed-logins-per-email`,
+  `failed-logins-per-ip`, `registrations-per-ip-per-hour`, `emails-per-address-per-hour`,
+  `emails-per-ip-per-hour`). Behind a proxy, the visitor's address comes from `X-Forwarded-For`.
+- **Campus and pickup spot.** Every business picks its CPUT campus (Bellville, District Six,
+  Mowbray, Wellington, Granger Bay) and a pickup spot; students can save their own campus. Explore
+  has campus chips plus a **Near me** shortcut, and listing cards/pages say where to collect.
+- **Pickup codes.** Each pickup order gets a 4-digit code that only the buyer sees (shown big on
+  *My orders* and in the "ready" notification). The seller enters it to complete the order, which
+  proves the hand-over happened. 5 wrong codes lock the order for 15 minutes.
+- **Paging everywhere it matters.** Explore loads 24 listings at a time with infinite scroll and a
+  "Load more" fallback (`GET /api/listings/search` returns `{items, page, totalItems, hasNext}`);
+  category counts come from one query (`GET /api/listings/category-counts`); admin listings page
+  by 30; post feeds load older posts with a `before` cursor.
+- **Up to 6 photos per listing**, reorderable when editing, shown in a swipeable gallery with
+  thumbnails, arrows and keyboard support.
+- **Trust signals** on cards, listing pages and shop pages: verified badge, rating, orders
+  completed and typical reply time (`GET /api/businesses/{id}/trust`).
+- **Real-time updates.** New messages and notifications arrive instantly over Server-Sent Events
+  (`GET /api/stream`): open chats update in place, toasts appear on any page, and badge polling
+  only runs as a fallback when the stream is down. Connections are kept in memory, so with more
+  than one backend instance this needs a shared broker (e.g. Redis pub/sub).
+- **Keyboard-friendly dialogs.** Every modal and the cart drawer move focus inside when opened,
+  keep Tab inside, close on Escape, stop the page behind from scrolling, and give focus back to
+  the button that opened them (`v-dialog` directive, `frontend/src/directives/dialog.ts`).
+- **Dark mode** with Light / Dark / Match device, in the account menu and the footer; remembered
+  per browser and applied before first paint. It's generated at build time by a small PostCSS
+  plugin (`frontend/postcss/darkTheme.js`) that gives every light-palette colour a dark twin, so
+  new components get dark mode without writing `dark:` classes.
+- **Seller setup checklist** on the dashboard: rules, business, campus and pickup spot, logo,
+  first listing with a photo, first post, verification - each with a shortcut to do it.
+- **Flyway migrations** replace `ddl-auto=update` (see *Database* below) and **GitHub Actions CI**
+  (`.github/workflows/ci.yml`) runs the backend tests (including migrations on a real MySQL), the
+  frontend type-check and build, and a Docker image build on every push and pull request.
+
+### Responsive layout (October 2026)
+
+Every page, admin tab, menu, drawer and dialog was checked automatically at 17 screen sizes (phones
+from 320px, phones turned sideways, tablets, laptops, 1920px desktops and 2560px monitors) for
+anything cut off by the screen edge, clipped by its container, hidden behind the bottom tab bar or
+making the page scroll sideways, and every finding was fixed.
+
+The CSS is **mobile-first**: unprefixed Tailwind classes are the phone layout and each breakpoint
+adds to the one below. Breakpoints (`frontend/tailwind.config.js`): `xs` 400px (large phones),
+`sm` 640, `md` 768 (tablets - the bottom tab bar hands over to the top navigation here), `lg` 1024
+(small laptops - filters sidebar), `xl` 1280, `2xl` 1536 and `3xl` 1920 (large monitors - wider
+page and an extra column of listings). Rules of thumb that prevent the bugs we found:
+
+- Give every `grid` a phone column (`grid-cols-1`) and write fraction tracks as `minmax(0,1fr)`,
+  so long content can't stretch the grid past the screen.
+- In a `flex` row, wrap mixed text and inline tags in one `<span>`, or each piece becomes a column.
+- Rows of "details + action buttons" stack on phones (`flex-col sm:flex-row`).
+- Dialogs and dropdowns are height-capped and scroll inside (`.modal-panel`, `.dropdown-panel`).
+
 ## Not built yet (next steps)
 
-- Real email delivery for verification links.
 - Real payment processing - fulfilment and payment are arranged directly between buyer and
   seller on pickup/delivery; the `payment` and `appointment` packages are still the empty stubs
   they started as.
@@ -266,10 +401,14 @@ test script below) — it isn't just "compiles", it actually runs.
 
 ## Database: MySQL setup
 
-The app talks to MySQL via `spring-boot-starter-data-jpa` + `mysql-connector-j`, and creates/
-updates its own schema on startup (`spring.jpa.hibernate.ddl-auto=update` in
-`backend/src/main/resources/application.yml`) — **you do not need to write `CREATE TABLE` statements
-yourself.** You only need to create the database and a user once.
+The app talks to MySQL (or MariaDB, e.g. XAMPP) via `spring-boot-starter-data-jpa` +
+`mysql-connector-j`. Flyway creates and upgrades the tables on startup - **you do not need to
+write `CREATE TABLE` statements yourself.** You only need to create the database and a user once.
+
+> **XAMPP / MariaDB:** the default `max_allowed_packet` is 1 MB, which is too small for photo
+> uploads (the app explains this to the user instead of failing silently). Set
+> `max_allowed_packet=16M` under `[mysqld]` in `C:\xampp\mysql\bin\my.ini` and restart MySQL.
+> MySQL 8 defaults to 64 MB, so production needs no change.
 
 ### 1. Create the database and app user
 
@@ -290,77 +429,28 @@ If you'd rather use different credentials, change the `IDENTIFIED BY '...'` pass
 set `DB_USERNAME` / `DB_PASSWORD` env vars to match when you run the app (defaults are both
 `unilinkhub`, matching the block above).
 
-### 2. The schema Hibernate creates
+### 2. The schema (Flyway migrations)
 
-For reference (e.g. if you need to hand in a schema, or want to create tables without starting
-the app), this is the actual DDL Hibernate generates from the entities — captured with
-`SHOW CREATE TABLE <name>` after a real run:
+The schema lives in versioned SQL files in `backend/src/main/resources/db/migration`, applied by
+Flyway on startup:
 
-```sql
-CREATE TABLE `users` (
-  `id` binary(16) NOT NULL,
-  `account_status` enum('ACTIVE','DEACTIVATED','PENDING_VERIFICATION','SUSPENDED') NOT NULL,
-  `created_at` datetime(6) NOT NULL,
-  `email` varchar(254) NOT NULL,
-  `first_name` varchar(100) NOT NULL,
-  `last_name` varchar(100) NOT NULL,
-  `password_hash` varchar(255) NOT NULL,
-  `phone_number` varchar(32) DEFAULT NULL,
-  `role` enum('ADMIN','STUDENT') NOT NULL,
-  `is_seller` bit(1) NOT NULL,
-  `student_number` varchar(32) NOT NULL,
-  `verification_token` varchar(64) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_users_email` (`email`),
-  UNIQUE KEY `uk_users_student_number` (`student_number`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+- `V1__baseline.sql` - every table, generated from the JPA entities (works on MySQL 8 and
+  MariaDB 10.4+). Read it if you need to hand in a schema.
+- `V2__lookup_indexes.sql` - indexes for the lookups every page makes (listings by business,
+  orders by buyer, unread notifications, ...).
 
-CREATE TABLE `businesses` (
-  `id` binary(16) NOT NULL,
-  `business_name` varchar(150) NOT NULL,
-  `category` varchar(100) NOT NULL,
-  `created_at` datetime(6) NOT NULL,
-  `description` varchar(1000) NOT NULL,
-  `owner_id` binary(16) NOT NULL,
-  `verification_status` enum('PENDING','REJECTED','VERIFIED') NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+Hibernate runs with `ddl-auto=validate`: it never changes tables, it only refuses to start if the
+entities and the database disagree. **To change the schema, add a new file** such as
+`V3__add_listing_tags.sql` - never edit a migration that has already run somewhere. Adding a value
+to an enum stored in the database (for example a new `Campus`) also needs a migration, because
+those columns are MySQL `ENUM`s.
 
--- Product and Service both live in this one table (single-table inheritance);
--- listing_type discriminates between them, and each subtype's own columns are just NULL
--- on rows of the other type.
-CREATE TABLE `listings` (
-  `listing_type` varchar(31) NOT NULL,
-  `id` binary(16) NOT NULL,
-  `business_id` binary(16) NOT NULL,
-  `category` varchar(100) NOT NULL,
-  `created_at` datetime(6) NOT NULL,
-  `description` varchar(2000) NOT NULL,
-  `name` varchar(150) NOT NULL,
-  `price` decimal(10,2) NOT NULL,
-  `status` enum('ACTIVE','INACTIVE','SOLD_OUT') NOT NULL,
-  `view_count` bigint(20) NOT NULL,
-  `image_url` varchar(255) DEFAULT NULL,
-  `stock_quantity` int(11) DEFAULT NULL,
-  `availability_schedule` varchar(255) DEFAULT NULL,
-  `duration_minutes` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+`MigrationTest` applies the migrations to a real, empty MySQL database and lets Hibernate validate
+the result. It runs in CI; locally, point it at an empty database:
 
-CREATE TABLE `reports` (
-  `id` binary(16) NOT NULL,
-  `admin_note` varchar(2000) DEFAULT NULL,
-  `created_at` datetime(6) NOT NULL,
-  `details` varchar(2000) DEFAULT NULL,
-  `reason` enum('INAPPROPRIATE_CONDUCT','MISREPRESENTATION','NON_DELIVERY','OTHER','SPAM') NOT NULL,
-  `reporter_id` binary(16) NOT NULL,
-  `resolved_at` datetime(6) DEFAULT NULL,
-  `reviewed_by_admin_id` binary(16) DEFAULT NULL,
-  `status` enum('DISMISSED','OPEN','RESOLVED','UNDER_REVIEW') NOT NULL,
-  `target_id` binary(16) NOT NULL,
-  `target_type` enum('LISTING','USER') NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```sh
+MIGRATION_TEST_DB_URL="jdbc:mysql://localhost:3306/unilinkhub_migration_test" \
+MIGRATION_TEST_DB_USERNAME=root MIGRATION_TEST_DB_PASSWORD= mvn test
 ```
 
 `id` columns are `binary(16)` because entity IDs are Java `UUID`s.
@@ -379,10 +469,10 @@ JOIN unilinkhub.businesses b ON b.id = l.business_id;
 -- Open reports waiting for admin review
 SELECT id, reason, details, status, created_at FROM unilinkhub.reports WHERE status = 'OPEN';
 
--- Promote the very first admin this way (bootstrapping problem: "Promote to Admin" in the
--- admin console needs an existing admin to click it). Every admin after that can be promoted
--- from the console's "Student accounts" tab instead.
-UPDATE unilinkhub.users SET role = 'ADMIN' WHERE email = 'someone@mycput.ac.za';
+-- The first admin is normally created on startup from ADMIN_EMAIL / ADMIN_PASSWORD, and every
+-- admin after that is invited from the console's "Admin team" tab. Admins and students are
+-- separate accounts, so don't turn a student account into an admin.
+SELECT email, first_name, last_name FROM unilinkhub.users WHERE role = 'ADMIN';
 ```
 
 ## Running it locally
@@ -396,10 +486,12 @@ UPDATE unilinkhub.users SET role = 'ADMIN' WHERE email = 'someone@mycput.ac.za';
    cd backend
    mvn spring-boot:run
    ```
-   Env vars you can override: `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` (set a real 32+ byte
-   secret before this ever goes near production), `SERVER_PORT` (defaults to **8081**, not
-   8080 — picked to avoid clashing with another local Spring Boot project on this machine;
-   change it back in `application.yml` if that's not an issue for you).
+   Env vars you can override: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` (set a real 32+
+   byte secret before this ever goes near production - `openssl rand -base64 48`), `ADMIN_EMAIL` /
+   `ADMIN_PASSWORD` (creates the first admin if there isn't one), the `MAIL_*` settings above,
+   `JPA_DDL_AUTO` (default `validate`; see *Upgrading a database* above), and `PORT` (defaults to
+   **8081**, not 8080 - picked to avoid clashing with another local Spring Boot project on this
+   machine).
 3. API is served at `http://localhost:8081/api`. `mvn test` runs against an in-memory H2
    database, so tests don't need MySQL running at all.
 
@@ -462,13 +554,15 @@ JWT=$(extract "$LOGIN_JSON" "token")
 echo "$LOGIN_JSON"; echo
 
 echo "== become seller =="
-curl -s -X POST "$API/users/me/become-seller" -H "Authorization: Bearer $JWT"; echo
+curl -s -X POST "$API/users/me/become-seller" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -d '{"acceptedRules": true}'; echo
 
 echo "== create business =="
 BUSINESS_JSON=$(curl -s -X POST "$API/businesses" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -d '{
   "businessName": "Siphos Prints",
   "description": "Affordable printing and binding for res students",
-  "category": "Printing"
+  "category": "Printing",
+  "campus": "BELLVILLE",
+  "pickupLocation": "Res block C, room 12"
 }')
 echo "$BUSINESS_JSON"
 BUSINESS_ID=$(extract "$BUSINESS_JSON" "id")
@@ -499,9 +593,8 @@ curl -s -X POST "$API/reports" -H "Authorization: Bearer $JWT" -H "Content-Type:
   \"details\": \"Testing the report flow\"
 }"; echo
 
-echo "To review it as admin, promote this account first:"
-echo "  UPDATE unilinkhub.users SET role='ADMIN' WHERE email='siphokuhle.test@mycput.ac.za';"
-echo "...then log in again for a token with ROLE_ADMIN and call:"
+echo "To review it, log in with a separate admin account (e.g. the one created from ADMIN_EMAIL)"
+echo "- not this student account - and with that admin token call:"
 echo "  GET  $API/admin/reports?status=OPEN"
 echo "  POST $API/admin/reports/{id}/resolve   -d '{\"note\": \"...\"}'"
 ```

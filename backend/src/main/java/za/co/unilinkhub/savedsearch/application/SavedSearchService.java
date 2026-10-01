@@ -1,9 +1,9 @@
 package za.co.unilinkhub.savedsearch.application;
 
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.listing.domain.Listing;
 import za.co.unilinkhub.listing.repository.ListingRepository;
 import za.co.unilinkhub.notification.application.NotificationService;
@@ -77,9 +77,9 @@ public class SavedSearchService {
 
     private SavedSearch findOwned(UUID id, UUID userId) {
         SavedSearch savedSearch = savedSearchRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Saved search not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that saved search."));
         if (!savedSearch.getUserId().equals(userId)) {
-            throw new UnauthorizedException("This saved search does not belong to you");
+            throw new ForbiddenException("You can only change your own saved searches.");
         }
         return savedSearch;
     }

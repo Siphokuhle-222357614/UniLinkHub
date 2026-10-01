@@ -19,6 +19,7 @@ const filters: { value: "ALL" | NotificationCategory; label: string }[] = [
   { value: "STOCK", label: "Stock & price" },
   { value: "REVIEW", label: "Reviews" },
   { value: "SAVED_SEARCH", label: "Saved searches" },
+  { value: "POST", label: "Posts" },
   { value: "ANNOUNCEMENT", label: "Announcements" },
 ];
 

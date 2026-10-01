@@ -75,6 +75,18 @@ onMounted(load);
           </div>
           <span class="badge shrink-0" :class="STATUS_STYLES[o.status]">{{ STATUS_LABELS[o.status] }}</span>
         </div>
+        <div
+          v-if="o.pickupCode && (o.status === 'PLACED' || o.status === 'CONFIRMED' || o.status === 'READY')"
+          class="mt-3 flex items-center justify-between gap-4 rounded-control border border-teal-200 bg-teal-50 px-4 py-3"
+        >
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-teal-700">Pickup code</p>
+            <p class="mt-0.5 text-xs text-navy-800">
+              {{ o.status === "READY" ? "Your order is ready - show this code when you collect it." : "Show this code to the seller when you collect your order." }}
+            </p>
+          </div>
+          <p class="font-mono text-3xl font-bold tracking-[0.3em] text-uni-navy" :aria-label="`Pickup code ${o.pickupCode.split('').join(' ')}`">{{ o.pickupCode }}</p>
+        </div>
         <p v-if="o.status === 'CANCELLED' && o.cancelReason" class="mt-2 border-t border-light-grey pt-2 text-xs text-medium-grey">
           Cancelled by seller: "{{ o.cancelReason }}"
         </p>

@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { ArrowLeft, LogOut, ShieldCheck } from "@lucide/vue";
 import { useAuthStore } from "@/stores/auth";
 import LogoMark from "@/components/LogoMark.vue";
+import ThemeToggleButton from "@/components/ThemeToggleButton.vue";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -22,18 +23,21 @@ function handleLogout() {
 
 <template>
   <header class="sticky top-0 z-30 border-b border-light-grey/70 bg-white/80 backdrop-blur-xl">
-    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+    <div class="mx-auto flex h-16 max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
       <div class="flex min-w-0 items-center gap-3">
         <RouterLink to="/" class="flex shrink-0 items-center gap-2" aria-label="UniLinkHub home">
           <LogoMark :size="30" />
           <span class="hidden font-display text-lg font-bold text-uni-navy sm:inline">Uni<span class="text-teal-500">Link</span>Hub</span>
         </RouterLink>
-        <span class="badge shrink-0 border border-gold-200 bg-gold-50 py-1 text-gold-700">
-          <ShieldCheck class="h-3.5 w-3.5" /> Admin console
+        <!-- Small phones: just the shield (the bar also holds the theme toggle, back link, avatar and log out). -->
+        <span class="badge min-w-0 border border-gold-200 bg-gold-50 py-1 text-gold-700" title="Admin console">
+          <ShieldCheck class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span class="sr-only xs:not-sr-only xs:truncate">Admin console</span>
         </span>
       </div>
 
       <nav class="flex shrink-0 items-center gap-1 sm:gap-2">
+        <ThemeToggleButton />
         <RouterLink to="/" class="btn-ghost px-3 text-xs">
           <ArrowLeft class="h-4 w-4" /> <span class="hidden sm:inline">Marketplace</span>
         </RouterLink>

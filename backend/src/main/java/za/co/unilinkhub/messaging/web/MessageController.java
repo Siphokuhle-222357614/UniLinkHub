@@ -15,6 +15,7 @@ import za.co.unilinkhub.messaging.application.ConversationSummaryView;
 import za.co.unilinkhub.messaging.application.MessageDTO;
 import za.co.unilinkhub.messaging.application.MessageService;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ public class MessageController {
     public record ReplyRequest(@NotBlank String body) {
     }
 
+    @StudentOnly("message sellers")
     @PostMapping("/api/conversations")
     @ResponseStatus(HttpStatus.CREATED)
     public ConversationSummaryView start(@CurrentUser UUID buyerId, @Valid @RequestBody StartConversationRequest request) {
@@ -53,6 +55,7 @@ public class MessageController {
         return messageService.getMessages(id, userId);
     }
 
+    @StudentOnly("send marketplace messages")
     @PostMapping("/api/conversations/{id}/messages")
     @ResponseStatus(HttpStatus.CREATED)
     public MessageDTO reply(@CurrentUser UUID userId, @PathVariable UUID id, @Valid @RequestBody ReplyRequest request) {

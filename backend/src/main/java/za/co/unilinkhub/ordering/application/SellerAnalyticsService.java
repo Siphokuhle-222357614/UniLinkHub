@@ -1,11 +1,11 @@
 package za.co.unilinkhub.ordering.application;
 
+import za.co.unilinkhub.common.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.business.domain.Business;
 import za.co.unilinkhub.business.repository.BusinessRepository;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
-import za.co.unilinkhub.common.exception.UnauthorizedException;
 import za.co.unilinkhub.ordering.domain.Order;
 import za.co.unilinkhub.ordering.domain.OrderItem;
 import za.co.unilinkhub.ordering.domain.OrderStatus;
@@ -82,9 +82,9 @@ public class SellerAnalyticsService {
             return businessRepository.findByOwnerId(sellerId).stream().map(Business::getId).toList();
         }
         Business business = businessRepository.findById(businessId)
-                .orElseThrow(() -> new ResourceNotFoundException("Business not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that business. It may have been removed."));
         if (!business.getOwnerId().equals(sellerId)) {
-            throw new UnauthorizedException("You do not own this business");
+            throw new ForbiddenException("Only the owner of this business can do this. You can only manage businesses you created yourself.");
         }
         return List.of(businessId);
     }

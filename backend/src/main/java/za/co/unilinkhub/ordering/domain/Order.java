@@ -18,6 +18,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,9 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 public class Order {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int MAX_PICKUP_CODE_FAILURES = 5;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -74,6 +78,19 @@ public class Order {
     @Column(name = "cancel_reason", length = 1000)
     private String cancelReason;
 
+    /**
+     * Shown only to the buyer; the seller enters it to complete the order, which proves the handover
+     * happened. Null on orders placed before pickup codes existed - those complete without one.
+     */
+    @Column(name = "pickup_code", length = 4)
+    private String pickupCode;
+
+    @Column(name = "pickup_code_failures", nullable = false)
+    private int pickupCodeFailures = 0;
+
+    @Column(name = "pickup_code_locked_until")
+    private LocalDateTime pickupCodeLockedUntil;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -93,6 +110,7 @@ public class Order {
         this.subtotal = subtotal;
         this.discountAmount = discountAmount;
         this.total = total;
+        this.pickupCode = String.format("%04d", RANDOM.nextInt(10_000));
     }
 
     public static Order create(UUID buyerId, UUID businessId, List<OrderItem> items, String fulfilmentMethod,
@@ -103,28 +121,59 @@ public class Order {
 
     public void confirm() {
         if (status != OrderStatus.PLACED) {
-            throw new IllegalStateException("Order is not awaiting confirmation");
+            throw new IllegalStateException("This order can't be confirmed because it isn't waiting for confirmation any more (it may already be confirmed or cancelled).");
         }
         this.status = OrderStatus.CONFIRMED;
     }
 
     public void markReady() {
         if (status != OrderStatus.CONFIRMED) {
-            throw new IllegalStateException("Order must be confirmed before it can be marked ready");
+            throw new IllegalStateException("Please confirm this order before marking it as ready for pickup.");
         }
         this.status = OrderStatus.READY;
     }
 
+    public enum PickupCheck { OK, WRONG, LOCKED }
+
+    /**
+     * Checks the code the seller typed in. Five wrong tries lock completion for 15 minutes, so the
+     * 10,000 possible codes can't simply be guessed.
+     */
+    public PickupCheck checkPickupCode(String entered, LocalDateTime now) {
+        if (pickupCode == null) {
+            return PickupCheck.OK;
+        }
+        if (pickupCodeLockedUntil != null && now.isBefore(pickupCodeLockedUntil)) {
+            return PickupCheck.LOCKED;
+        }
+        if (pickupCodeLockedUntil != null) {
+            pickupCodeLockedUntil = null;
+            pickupCodeFailures = 0;
+        }
+        if (entered != null && pickupCode.equals(entered.trim())) {
+            return PickupCheck.OK;
+        }
+        pickupCodeFailures++;
+        if (pickupCodeFailures >= MAX_PICKUP_CODE_FAILURES) {
+            pickupCodeLockedUntil = now.plusMinutes(15);
+        }
+        return PickupCheck.WRONG;
+    }
+
+    public int pickupCodeTriesLeft() {
+        return Math.max(0, MAX_PICKUP_CODE_FAILURES - pickupCodeFailures);
+    }
+
     public void complete() {
         if (status != OrderStatus.READY) {
-            throw new IllegalStateException("Order must be ready before it can be completed");
+            throw new IllegalStateException("Please mark this order as ready for pickup before completing it.");
         }
         this.status = OrderStatus.COMPLETED;
     }
 
     public void cancel(String reason) {
         if (status == OrderStatus.COMPLETED || status == OrderStatus.CANCELLED) {
-            throw new IllegalStateException("Order can no longer be cancelled");
+            throw new IllegalStateException("This order can't be cancelled because it's already completed or cancelled.");
         }
         this.status = OrderStatus.CANCELLED;
         this.cancelReason = reason;

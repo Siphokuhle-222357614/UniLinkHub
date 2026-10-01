@@ -14,7 +14,7 @@ public class ConfirmEmailChangeUseCase {
 
     public UserDTO execute(String token) {
         User user = userRepository.findByEmailChangeToken(token)
-                .orElseThrow(() -> new BadRequestException("Invalid or expired email change link"));
+                .orElseThrow(() -> new BadRequestException("This email change link isn't valid any more - it may have been used already. Request a new one from your account settings."));
         user.confirmEmailChange(token);
         return UserDTO.from(userRepository.save(user));
     }

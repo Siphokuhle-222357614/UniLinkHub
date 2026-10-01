@@ -20,7 +20,9 @@ public record UserDTO(
         boolean seller,
         String suspensionReason,
         List<String> disabledNotificationCategories,
-        LocalDateTime createdAt
+        LocalDateTime sellerRulesAcceptedAt,
+        LocalDateTime createdAt,
+        String campus
 ) {
     public static UserDTO from(User user) {
         String disabled = user.getDisabledNotificationCategories();
@@ -41,7 +43,9 @@ public record UserDTO(
                 user.isSeller(),
                 user.getSuspensionReason(),
                 disabledList,
-                user.getCreatedAt()
+                user.getSellerRulesAcceptedAt(),
+                user.getCreatedAt(),
+                user.getCampus() == null ? null : user.getCampus().name()
         );
     }
 }

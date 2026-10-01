@@ -14,14 +14,20 @@ public record BusinessDTO(
         String verificationStatus,
         String imageUrl,
         String rejectionReason,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String campus,
+        String campusLabel,
+        String pickupLocation
 ) {
     public static BusinessDTO from(Business business) {
         return new BusinessDTO(
                 business.getId(), business.getOwnerId(), business.getBusinessName(),
                 business.getDescription(), business.getCategory(),
                 business.getVerificationStatus().name(), business.getImageUrl(),
-                business.getRejectionReason(), business.getCreatedAt()
+                business.getRejectionReason(), business.getCreatedAt(),
+                business.getCampus() == null ? null : business.getCampus().name(),
+                business.getCampus() == null ? null : business.getCampus().label(),
+                business.getPickupLocation()
         );
     }
 }

@@ -53,6 +53,34 @@ const ACTION_LABELS: Record<string, string> = {
   complete: "Order completed!",
 };
 
+// ---- Completing needs the buyer's pickup code: proof the handover really happened. ----
+const completing = ref<OrderDTO | null>(null);
+const pickupCode = ref("");
+const pickupError = ref("");
+
+function openComplete(order: OrderDTO) {
+  completing.value = order;
+  pickupCode.value = "";
+  pickupError.value = "";
+}
+
+async function submitComplete() {
+  if (!completing.value) return;
+  const id = completing.value.id;
+  acting.value = id;
+  pickupError.value = "";
+  try {
+    await api.post(`/orders/${id}/complete`, { pickupCode: pickupCode.value });
+    completing.value = null;
+    toast.success(ACTION_LABELS.complete);
+    await load();
+  } catch (err) {
+    pickupError.value = extractErrorMessage(err);
+  } finally {
+    acting.value = null;
+  }
+}
+
 async function act(id: string, action: "confirm" | "ready" | "complete") {
   acting.value = id;
   error.value = "";
@@ -154,13 +182,41 @@ onMounted(load);
               v-if="o.status === 'READY'"
               class="inline-flex items-center justify-center rounded-control bg-campus-teal px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
               :disabled="acting === o.id"
-              @click="act(o.id, 'complete')"
+              @click="o.requiresPickupCode ? openComplete(o) : act(o.id, 'complete')"
             >
               Mark completed
             </button>
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="completing" class="modal-backdrop" @click.self="completing = null">
+      <form v-dialog="() => (completing = null)" class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="complete-title" @submit.prevent="submitComplete">
+        <h2 id="complete-title" class="font-display text-lg font-bold text-uni-navy">Hand over the order</h2>
+        <p class="mt-1 text-sm text-medium-grey">
+          Ask {{ completing.buyerName }} for the 4-digit pickup code on their <span class="font-semibold">My orders</span> page. It
+          proves they received the order.
+        </p>
+        <label for="pickup-code" class="field-label mt-5">Pickup code</label>
+        <input
+          id="pickup-code"
+          v-model="pickupCode"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="4"
+          pattern="[0-9]{4}"
+          placeholder="••••"
+          class="input-field text-center font-mono text-2xl tracking-[0.5em]"
+          autofocus
+          @input="pickupCode = pickupCode.replace(/\D/g, '')"
+        />
+        <p v-if="pickupError" class="mt-2 text-sm text-danger" role="alert">{{ pickupError }}</p>
+        <div class="mt-6 flex gap-2">
+          <button type="button" class="btn-secondary flex-1" @click="completing = null">Cancel</button>
+          <button type="submit" class="btn-primary flex-1" :disabled="pickupCode.length !== 4 || acting === completing.id">Complete order</button>
+        </div>
+      </form>
     </div>
   </section>
 </template>

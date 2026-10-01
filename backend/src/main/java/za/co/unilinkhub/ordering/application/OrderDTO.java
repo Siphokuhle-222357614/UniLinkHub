@@ -23,7 +23,10 @@ public record OrderDTO(
         BigDecimal total,
         String cancelReason,
         List<OrderItemDTO> items,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        /** Only ever filled in for the buyer - the seller must ask for it at handover. */
+        String pickupCode,
+        boolean requiresPickupCode
 ) {
     public record OrderItemDTO(UUID listingId, String listingName, BigDecimal unitPrice, int quantity) {
         public static OrderItemDTO from(OrderItem item) {
@@ -31,12 +34,13 @@ public record OrderDTO(
         }
     }
 
-    public static OrderDTO from(Order order, String buyerName, String businessName) {
+    public static OrderDTO from(Order order, String buyerName, String businessName, boolean forBuyer) {
         return new OrderDTO(
                 order.getId(), order.getBuyerId(), buyerName, order.getBusinessId(), businessName,
                 order.getStatus().name(), order.getFulfilmentMethod(), order.getNote(), order.getPromoCode(),
                 order.getSubtotal(), order.getDiscountAmount(), order.getTotal(), order.getCancelReason(),
-                order.getItems().stream().map(OrderItemDTO::from).toList(), order.getCreatedAt()
+                order.getItems().stream().map(OrderItemDTO::from).toList(), order.getCreatedAt(),
+                forBuyer ? order.getPickupCode() : null, order.getPickupCode() != null
         );
     }
 }

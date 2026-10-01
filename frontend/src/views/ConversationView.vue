@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import { useMessagesStore } from "@/stores/messages";
+import { onRealtime } from "@/lib/realtime";
 import type { ConversationSummaryView, MessageDTO } from "@/lib/types";
 
 const route = useRoute();
@@ -27,10 +28,22 @@ async function load() {
     thread.value = msgs;
     await messagesStore.fetchUnreadCount();
     await nextTick();
-    scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight });
+    scrollToEnd("auto");
   } catch (err) {
     error.value = extractErrorMessage(err);
   }
+}
+
+/** On tablets and up the thread has its own scrollbar; on phones the whole page scrolls. */
+function threadScrollsItself(): boolean {
+  const el = scrollEl.value;
+  return !!el && getComputedStyle(el).overflowY === "auto";
+}
+
+function scrollToEnd(behavior: ScrollBehavior) {
+  const el = scrollEl.value;
+  if (threadScrollsItself()) el?.scrollTo({ top: el.scrollHeight, behavior });
+  else window.scrollTo({ top: document.documentElement.scrollHeight, behavior });
 }
 
 async function send() {
@@ -41,7 +54,7 @@ async function send() {
     thread.value.push(data);
     draft.value = "";
     await nextTick();
-    scrollEl.value?.scrollTo({ top: scrollEl.value.scrollHeight, behavior: "smooth" });
+    scrollToEnd("smooth");
   } catch (err) {
     error.value = extractErrorMessage(err);
   } finally {
@@ -55,11 +68,31 @@ function formatTime(iso: string): string {
 
 const myId = computed(() => auth.user?.id);
 
+/** A reply arrived while this chat is open: re-read the thread, which also marks it as read. */
+async function refreshThread() {
+  const el = scrollEl.value;
+  const atBottom = threadScrollsItself()
+    ? !el || el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    : window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;
+  const { data } = await api.get<MessageDTO[]>(`/conversations/${route.params.id}/messages`);
+  thread.value = data;
+  await messagesStore.fetchUnreadCount();
+  await nextTick();
+  if (atBottom) scrollToEnd("smooth");
+}
+
+const stopLive = onRealtime("message", ({ conversationId }) => {
+  if (conversationId === route.params.id) refreshThread().catch(() => {});
+});
+
 onMounted(load);
+onBeforeUnmount(stopLive);
 </script>
 
 <template>
-  <section class="mx-auto flex h-[calc(100vh-120px)] max-w-2xl flex-col">
+  <!-- Phones: the page itself scrolls and the message box sticks above the bottom tab bar.
+       Tablets and up: a fixed-height chat panel whose thread scrolls inside it. -->
+  <section class="mx-auto flex max-w-2xl flex-col md:h-[calc(100dvh-9rem)]">
     <RouterLink to="/messages" class="mb-3 inline-flex w-fit items-center gap-1 text-sm font-medium text-medium-grey hover:text-campus-teal">
       &larr; Messages
     </RouterLink>
@@ -79,7 +112,7 @@ onMounted(load);
         </div>
       </div>
 
-      <div ref="scrollEl" class="flex-1 space-y-3 overflow-y-auto border-x border-light-grey bg-soft-grey px-4 py-5">
+      <div ref="scrollEl" class="min-h-[40vh] flex-1 space-y-3 border-x border-light-grey bg-soft-grey px-3 py-5 xs:px-4 md:min-h-0 md:overflow-y-auto">
         <div v-for="m in thread" :key="m.id" class="flex" :class="m.senderId === myId ? 'justify-end' : 'justify-start'">
           <div
             class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm"
@@ -93,8 +126,11 @@ onMounted(load);
         </div>
       </div>
 
-      <form class="flex items-end gap-2 rounded-b-card border border-t-0 border-light-grey bg-white px-4 py-3" @submit.prevent="send">
-        <textarea v-model="draft" rows="1" placeholder="Write a message..." class="input-field resize-none"></textarea>
+      <form
+        class="sticky bottom-[calc(3.625rem+env(safe-area-inset-bottom,0px))] z-10 flex items-end gap-2 rounded-b-card border border-t-0 border-light-grey bg-white px-3 py-3 xs:px-4 md:static"
+        @submit.prevent="send"
+      >
+        <textarea v-model="draft" rows="1" placeholder="Write a message..." aria-label="Write a message" class="input-field min-w-0 resize-none"></textarea>
         <button type="submit" class="btn-primary shrink-0 text-sm" :disabled="sending || !draft.trim()">
           {{ sending ? "Sending..." : "Send" }}
         </button>

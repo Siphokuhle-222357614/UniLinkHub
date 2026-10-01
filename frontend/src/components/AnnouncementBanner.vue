@@ -35,7 +35,7 @@ onMounted(load);
 
 <template>
   <div v-if="announcement && !dismissed" class="border-b border-gold-200/60 bg-gradient-to-r from-gold-50 via-white to-teal-50 px-4 py-2.5 sm:px-6">
-    <div class="mx-auto flex max-w-7xl items-center justify-between gap-3">
+    <div class="mx-auto flex max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1600px] items-center justify-between gap-3">
       <p class="flex min-w-0 items-center gap-2.5 text-sm text-navy-800">
         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-700">
           <Megaphone class="h-3.5 w-3.5" />

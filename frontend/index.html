@@ -5,10 +5,22 @@
     <link rel="icon" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#163D72" />
+    <script>
+      // Apply the saved/device colour theme before anything paints (see src/lib/theme.ts).
+      (function () {
+        var pref = null;
+        try { pref = localStorage.getItem("unilinkhub.theme"); } catch (e) {}
+        var dark = pref === "dark" || (pref !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) {
+          document.documentElement.classList.add("dark");
+          document.querySelector('meta[name="theme-color"]').setAttribute("content", "#0b1322");
+        }
+      })();
+    </script>
     <meta name="description" content="The campus marketplace for student entrepreneurs - print jobs, tutoring, food, hair & beauty and more from students in your res." />
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
-    <title>UniLinkHub Â· Connect. Buy. Sell & Succeed.</title>
+    <title>UniLinkHub · Connect. Buy. Sell & Succeed.</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -26,6 +38,12 @@
         justify-content: center;
         background: #f4f6fa;
         transition: opacity 0.4s ease, visibility 0.4s ease;
+      }
+      html.dark #app-splash {
+        background: #0b1322;
+      }
+      html.dark #app-splash .splash-tagline {
+        color: #b3c8e6;
       }
       #app-splash.splash-hidden {
         opacity: 0;

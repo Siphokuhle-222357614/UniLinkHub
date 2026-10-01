@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-import { CircleAlert, CircleCheck, Info } from "@lucide/vue";
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { CircleAlert, CircleCheck } from "@lucide/vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import AuthLayout from "@/components/AuthLayout.vue";
 import PasswordInput from "@/components/ui/PasswordInput.vue";
 
 const router = useRouter();
+const route = useRoute();
+// Admin invites reuse this page: the emailed link carries ?token=...&invite=1.
+const isInvite = ref(false);
 
 // Two steps on one screen: request a code, then redeem it. Step 2 is reachable directly too,
 // for someone who already has a code from an earlier request.
@@ -23,7 +26,7 @@ async function requestReset() {
   requestError.value = "";
   try {
     await api.post("/auth/forgot-password", { email: email.value });
-    requestStatus.value = "If that email is registered, a reset code has been sent.";
+    requestStatus.value = "If that email has an account, we've sent it a link to reset your password. Check your inbox and spam folder.";
     step.value = 2;
   } catch (err) {
     requestError.value = extractErrorMessage(err);
@@ -49,7 +52,7 @@ async function resetPassword() {
   resetting.value = true;
   try {
     await api.post("/auth/reset-password", { token: token.value, newPassword: newPassword.value });
-    resetStatus.value = "Password reset. Redirecting to login…";
+    resetStatus.value = isInvite.value ? "Password set! Taking you to login…" : "Password reset. Taking you to login…";
     setTimeout(() => router.push({ name: "login" }), 1500);
   } catch (err) {
     resetError.value = extractErrorMessage(err);
@@ -57,14 +60,22 @@ async function resetPassword() {
     resetting.value = false;
   }
 }
+
+onMounted(() => {
+  if (typeof route.query.token === "string") {
+    token.value = route.query.token;
+    step.value = 2;
+  }
+  isInvite.value = route.query.invite === "1";
+});
 </script>
 
 <template>
   <AuthLayout
-    :title="step === 1 ? 'Forgot your password?' : 'Choose a new password'"
-    :subtitle="step === 1 ? 'Enter your student email and we\'ll send you a reset code.' : 'Paste the reset code you received, then pick a new password.'"
+    :title="isInvite ? 'Set up your admin account' : step === 1 ? 'Forgot your password?' : 'Choose a new password'"
+    :subtitle="isInvite ? 'Choose a password for your new UniLinkHub admin account.' : step === 1 ? 'Enter your email and we\'ll send you a link to reset your password.' : 'Pick a new password for your account.'"
   >
-    <div class="mb-6 grid grid-cols-2 gap-1 rounded-control bg-soft-grey p-1">
+    <div v-if="!isInvite" class="mb-6 grid grid-cols-2 gap-1 rounded-control bg-soft-grey p-1">
       <button
         v-for="n in [1, 2] as const"
         :key="n"
@@ -72,20 +83,20 @@ async function resetPassword() {
         :class="step === n ? 'bg-white text-uni-navy shadow-card' : 'text-medium-grey hover:text-uni-navy'"
         @click="step = n"
       >
-        {{ n }}. {{ n === 1 ? "Request code" : "Reset password" }}
+        {{ n }}. {{ n === 1 ? "Request link" : "New password" }}
       </button>
     </div>
 
     <form v-if="step === 1" class="space-y-4" @submit.prevent="requestReset">
       <div>
-        <label for="fp-email" class="field-label">Student email</label>
+        <label for="fp-email" class="field-label">Email address</label>
         <input id="fp-email" v-model="email" type="email" required autocomplete="email" placeholder="you@mycput.ac.za" class="input-field" />
       </div>
       <p v-if="requestError" class="flex items-start gap-2 rounded-control border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-danger">
         <CircleAlert class="mt-0.5 h-4 w-4 shrink-0" /> {{ requestError }}
       </p>
       <button type="submit" class="btn-primary w-full py-3" :disabled="requesting">
-        {{ requesting ? "Sending…" : "Send reset code" }}
+        {{ requesting ? "Sending…" : "Email me a reset link" }}
       </button>
     </form>
 
@@ -93,9 +104,10 @@ async function resetPassword() {
       <p v-if="requestStatus" class="flex items-start gap-2 rounded-control border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800">
         <CircleCheck class="mt-0.5 h-4 w-4 shrink-0" /> {{ requestStatus }}
       </p>
-      <div>
+      <div v-if="!route.query.token">
         <label for="fp-token" class="field-label">Reset code</label>
-        <input id="fp-token" v-model="token" required placeholder="Paste your code" class="input-field font-mono text-xs" />
+        <input id="fp-token" v-model="token" required placeholder="Paste the code from your email" class="input-field font-mono text-xs" />
+        <p class="mt-1.5 text-xs text-medium-grey">Easiest: just click the button in the email - it fills this in for you.</p>
       </div>
       <div>
         <label for="fp-new" class="field-label">New password</label>
@@ -112,12 +124,8 @@ async function resetPassword() {
         <CircleCheck class="mt-0.5 h-4 w-4 shrink-0" /> {{ resetStatus }}
       </p>
       <button type="submit" class="btn-primary w-full py-3" :disabled="resetting">
-        {{ resetting ? "Resetting…" : "Reset password" }}
+        {{ resetting ? "Saving…" : isInvite ? "Set password" : "Reset password" }}
       </button>
-      <p class="flex gap-2 rounded-control bg-soft-grey p-3 text-xs text-medium-grey">
-        <Info class="h-4 w-4 shrink-0" />
-        No SMTP provider is wired up yet in dev - the reset code is logged to the backend console the same way the verification link is.
-      </p>
     </form>
 
     <p class="mt-8 text-center text-sm text-medium-grey">

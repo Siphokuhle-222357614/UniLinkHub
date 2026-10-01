@@ -9,9 +9,35 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       connection-timeout: 30000
+  # Outgoing email. Leave MAIL_HOST empty in local dev and every email is written to the log
+  # instead (with its full link) - see EmailService. For Gmail: MAIL_HOST=smtp.gmail.com,
+  # MAIL_USERNAME=<address>, MAIL_PASSWORD=<an App Password, not the normal password>.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      # Both on for real providers (Gmail, Brevo, SendGrid...); off only for a local test mail server.
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+  servlet:
+    multipart:
+      # Images are resized in the browser before upload; this is the hard ceiling.
+      max-file-size: 5MB
+      max-request-size: 6MB
+  # The schema is owned by Flyway (src/main/resources/db/migration); Hibernate only checks that the
+  # entities match it. A database created before migrations existed is adopted at V1 and then
+  # upgraded. If it predates some entity changes too, start once with JPA_DDL_AUTO=update.
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 1
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${JPA_DDL_AUTO:validate}
     open-in-view: false
     properties:
       hibernate:
@@ -19,10 +45,28 @@ spring:
         # dialect line removed: Hibernate 6 auto-detects MySQL
 
 server:
+  # Behind Render's proxy, read the visitor's real address from X-Forwarded-For (used by the
+  # log-in and sign-up rate limits) instead of seeing every request as coming from the proxy.
+  forward-headers-strategy: framework
   # Render sets PORT. Locally, fall back to 8081 (8080 is used by your other project).
   port: ${PORT:8081}
 
 unilinkhub:
+  app:
+    # Where the frontend lives - links in emails (verify, reset password) point here.
+    base-url: ${APP_BASE_URL:http://localhost:5173}
+  mail:
+    from: ${MAIL_FROM:UniLinkHub <no-reply@unilinkhub.app>}
+  registration:
+    # UniLinkHub is for CPUT students only: sign-up and email changes must use this domain.
+    allowed-email-domain: ${ALLOWED_EMAIL_DOMAIN:mycput.ac.za}
+  admin:
+    # Creates the first admin account on startup if none exists yet (every later admin is
+    # invited from the admin console). Leave blank to skip.
+    bootstrap-email: ${ADMIN_EMAIL:}
+    bootstrap-password: ${ADMIN_PASSWORD:}
+    bootstrap-first-name: ${ADMIN_FIRST_NAME:UniLinkHub}
+    bootstrap-last-name: ${ADMIN_LAST_NAME:Admin}
   security:
     jwt:
       secret: ${JWT_SECRET:change-this-in-production-to-a-long-random-secret-at-least-32-bytes}

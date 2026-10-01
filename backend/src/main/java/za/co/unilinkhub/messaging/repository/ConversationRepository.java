@@ -17,4 +17,6 @@ public interface ConversationRepository {
     List<Conversation> findByBuyerId(UUID buyerId);
 
     List<Conversation> findBySellerId(UUID sellerId);
+
+    List<Conversation> findByBusinessId(UUID businessId);
 }

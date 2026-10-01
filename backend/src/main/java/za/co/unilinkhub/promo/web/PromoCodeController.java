@@ -18,6 +18,7 @@ import za.co.unilinkhub.promo.application.PromoCodeDTO;
 import za.co.unilinkhub.promo.application.PromoCodeService;
 import za.co.unilinkhub.promo.application.PromoStatsDTO;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,6 +39,7 @@ public class PromoCodeController {
     public record SetActiveRequest(boolean active) {
     }
 
+    @StudentOnly("create promo codes")
     @PostMapping("/api/businesses/{businessId}/promo-codes")
     @ResponseStatus(HttpStatus.CREATED)
     public PromoCodeDTO create(@CurrentUser UUID sellerId, @PathVariable UUID businessId,

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import type { Component } from "vue";
 import { BadgeCheck, Bell, CircleQuestionMark, Flag, Megaphone, Star, UserX } from "@lucide/vue";
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { api, extractErrorMessage } from "@/lib/api";
 import { useToastStore } from "@/stores/toast";
 import AdminNav from "@/components/AdminNav.vue";
+import AdminListingsPanel from "@/components/admin/AdminListingsPanel.vue";
+import AdminTeamPanel from "@/components/admin/AdminTeamPanel.vue";
+import AdminPostsPanel from "@/components/admin/AdminPostsPanel.vue";
+import { REASON_LABELS } from "@/lib/reports";
 import type {
   AdminBusinessView,
   AdminStatsDTO,
@@ -39,8 +43,18 @@ type Section =
   | "orders"
   | "promos"
   | "questions"
-  | "broadcast";
+  | "broadcast"
+  | "listings"
+  | "posts"
+  | "team";
 const activeSection = ref<Section>("overview");
+
+// On phones the tab strip scrolls sideways: keep the chosen tab fully in view.
+const tabStrip = ref<HTMLElement | null>(null);
+watch(activeSection, async () => {
+  await nextTick();
+  tabStrip.value?.querySelector<HTMLElement>("[aria-selected=true]")?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+});
 
 // ---- Overview ----
 const stats = ref<AdminStatsDTO | null>(null);
@@ -88,13 +102,6 @@ function countFor(value: ReportStatus | "ALL"): number {
 
 const selected = computed(() => reports.value.find((r) => r.id === selectedId.value) ?? null);
 
-const REASON_LABELS: Record<string, string> = {
-  MISREPRESENTATION: "Misrepresentation",
-  NON_DELIVERY: "Non-delivery",
-  INAPPROPRIATE_CONDUCT: "Inappropriate conduct",
-  SPAM: "Spam",
-  OTHER: "Other",
-};
 
 const STATUS_STYLES: Record<ReportStatus, string> = {
   OPEN: "bg-warning/15 text-warning",
@@ -356,7 +363,7 @@ const filteredAccounts = computed(() => {
       (u) =>
         `${u.firstName} ${u.lastName}`.toLowerCase().includes(needle) ||
         u.email.toLowerCase().includes(needle) ||
-        u.studentNumber.toLowerCase().includes(needle),
+        (u.studentNumber ?? "").toLowerCase().includes(needle),
     );
   }
   return list;
@@ -382,12 +389,27 @@ async function loadAccounts() {
   }
 }
 
-async function acceptOrChangeAccount(id: string, action: "approve" | "reactivate") {
+// Students activate their own accounts by clicking the link sent to their @mycput.ac.za address,
+// so admins never approve them - but can re-send the link to someone who says it never arrived.
+async function resendVerification(id: string) {
   actingAccountId.value = id;
   accountsError.value = "";
   try {
-    await api.post(`/admin/users/${id}/${action}`);
-    toast.success(action === "approve" ? "Account approved!" : "Account reactivated!");
+    await api.post(`/admin/users/${id}/resend-verification`);
+    toast.success("Verification email sent", "They need to click the link in it to activate their account.");
+  } catch (err) {
+    accountsError.value = extractErrorMessage(err);
+  } finally {
+    actingAccountId.value = null;
+  }
+}
+
+async function reactivateAccount(id: string) {
+  actingAccountId.value = id;
+  accountsError.value = "";
+  try {
+    await api.post(`/admin/users/${id}/reactivate`);
+    toast.success("Account reactivated!");
     await loadAccounts();
   } catch (err) {
     accountsError.value = extractErrorMessage(err);
@@ -423,21 +445,12 @@ async function confirmSuspend(id: string) {
   }
 }
 
-const promotingAccountId = ref<string | null>(null);
+// ---- Listings moderation ----
+const listingsBusiness = ref<{ id: string; name: string } | null>(null);
 
-async function confirmPromote(id: string) {
-  actingAccountId.value = id;
-  accountsError.value = "";
-  try {
-    await api.post(`/admin/users/${id}/promote`);
-    promotingAccountId.value = null;
-    toast.success("Promoted to Admin!");
-    await loadAccounts();
-  } catch (err) {
-    accountsError.value = extractErrorMessage(err);
-  } finally {
-    actingAccountId.value = null;
-  }
+function moderateBusinessListings(id: string, name: string) {
+  listingsBusiness.value = { id, name };
+  activeSection.value = "listings";
 }
 
 const expandedAccountId = ref<string | null>(null);
@@ -746,15 +759,23 @@ onMounted(async () => {
   <div class="min-h-screen bg-soft-grey">
     <AdminNav />
 
-    <main class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
+    <main class="mx-auto max-w-7xl 2xl:max-w-[1400px] 3xl:max-w-[1600px] space-y-6 px-4 py-8 sm:px-6">
       <div>
         <h1 class="page-title">Admin dashboard</h1>
         <p class="text-sm text-medium-grey">Trust &amp; safety and business verification, in one place.</p>
       </div>
 
-      <div class="-mx-4 flex gap-6 overflow-x-auto border-b border-light-grey px-4 sm:mx-0 sm:px-0">
+      <!-- The fade at the edges says "more tabs this way" when the strip is wider than the screen. -->
+      <div
+        ref="tabStrip"
+        role="tablist"
+        aria-label="Admin sections"
+        class="-mx-4 flex gap-6 overflow-x-auto scroll-px-4 border-b border-light-grey px-4 [mask-image:linear-gradient(to_right,transparent,black_1rem,black_calc(100%-2.5rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 lg:[mask-image:none]"
+      >
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'overview'"
           :class="activeSection === 'overview' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'overview'"
         >
@@ -762,6 +783,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'reports'"
           :class="activeSection === 'reports' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'reports'"
         >
@@ -770,6 +793,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'businesses'"
           :class="activeSection === 'businesses' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'businesses'"
         >
@@ -778,14 +803,44 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'listings'"
+          :class="activeSection === 'listings' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'listings'"
+        >
+          Listings
+        </button>
+        <button
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'posts'"
+          :class="activeSection === 'posts' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'posts'"
+        >
+          Posts
+        </button>
+        <button
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'accounts'"
           :class="activeSection === 'accounts' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'accounts'"
         >
           Student accounts
-          <span class="ml-1.5 rounded-full bg-soft-grey px-2 py-0.5 text-xs">{{ accountCountFor('PENDING_VERIFICATION') }}</span>
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'team'"
+          :class="activeSection === 'team' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
+          @click="activeSection = 'team'"
+        >
+          Admin team
+        </button>
+        <button
+          class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'announcements'"
           :class="activeSection === 'announcements' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'announcements'"
         >
@@ -793,6 +848,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'activity'"
           :class="activeSection === 'activity' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'activity'"
         >
@@ -800,6 +857,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'bookings'"
           :class="activeSection === 'bookings' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'bookings'"
         >
@@ -807,6 +866,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'reviews'"
           :class="activeSection === 'reviews' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'reviews'"
         >
@@ -815,6 +876,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'orders'"
           :class="activeSection === 'orders' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'orders'"
         >
@@ -822,6 +885,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'promos'"
           :class="activeSection === 'promos' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'promos'"
         >
@@ -829,6 +894,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'questions'"
           :class="activeSection === 'questions' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'questions'"
         >
@@ -837,6 +904,8 @@ onMounted(async () => {
         </button>
         <button
           class="shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition"
+          role="tab"
+          :aria-selected="activeSection === 'broadcast'"
           :class="activeSection === 'broadcast' ? 'border-campus-teal text-uni-navy' : 'border-transparent text-medium-grey hover:text-charcoal'"
           @click="activeSection = 'broadcast'"
         >
@@ -854,19 +923,19 @@ onMounted(async () => {
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Students</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ stats.totalStudents }}</p>
-              <p class="text-xs text-medium-grey">{{ stats.pendingAccounts }} pending approval</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ stats.totalStudents }}</p>
+              <p class="text-xs text-medium-grey">{{ stats.pendingAccounts }} awaiting email verification</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Businesses</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">
                 {{ stats.businesses.pending + stats.businesses.verified + stats.businesses.rejected }}
               </p>
               <p class="text-xs text-medium-grey">{{ stats.businesses.pending }} pending review</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Active listings</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ stats.listings.active }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ stats.listings.active }}</p>
               <p class="text-xs text-medium-grey">
                 {{ stats.listings.active + stats.listings.inactive + stats.listings.soldOut }} total ever created
               </p>
@@ -1128,6 +1197,10 @@ onMounted(async () => {
                     <button class="font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="toggleBusinessExpand(b.id)">
                       {{ expandedBusinessId === b.id ? "Hide listings" : "View listings" }}
                     </button>
+                    &middot;
+                    <button class="font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="moderateBusinessListings(b.id, b.businessName)">
+                      Moderate listings
+                    </button>
                   </p>
                 </div>
                 <div v-if="b.verificationStatus === 'PENDING'" class="flex shrink-0 gap-2.5">
@@ -1239,16 +1312,15 @@ onMounted(async () => {
                         'bg-medium-grey/15 text-medium-grey': u.accountStatus === 'DEACTIVATED',
                       }"
                     >
-                      {{ u.accountStatus === "PENDING_VERIFICATION" ? "Pending" : u.accountStatus.charAt(0) + u.accountStatus.slice(1).toLowerCase() }}
+                      {{ u.accountStatus === "PENDING_VERIFICATION" ? "Awaiting email verification" : u.accountStatus.charAt(0) + u.accountStatus.slice(1).toLowerCase() }}
                     </span>
                     <span v-if="u.seller" class="badge bg-sky-blue/20 text-uni-navy">Seller</span>
-                    <span v-if="u.role === 'ADMIN'" class="badge bg-academic-gold/20 text-uni-navy">Admin</span>
                   </div>
                   <p v-if="u.accountStatus === 'SUSPENDED' && u.suspensionReason" class="mb-1 text-[13px] italic text-danger">
                     "{{ u.suspensionReason }}"
                   </p>
                   <p class="text-[13px] text-medium-grey">
-                    {{ u.email }} &middot; #{{ u.studentNumber }} &middot; {{ accountAge(u.createdAt) }}
+                    {{ u.email }} <template v-if="u.studentNumber">&middot; #{{ u.studentNumber }}</template> &middot; {{ accountAge(u.createdAt) }}
                     &middot;
                     <button class="font-medium text-teal-600 underline decoration-teal-600/30 underline-offset-4 hover:decoration-teal-600" @click="toggleAccountExpand(u.id)">
                       {{ expandedAccountId === u.id ? "Hide details" : "View details" }}
@@ -1258,17 +1330,18 @@ onMounted(async () => {
                 <div class="flex shrink-0 flex-wrap gap-2">
                   <button
                     v-if="u.accountStatus === 'PENDING_VERIFICATION'"
-                    class="btn-primary text-sm"
+                    class="btn-secondary text-sm"
                     :disabled="actingAccountId === u.id"
-                    @click="acceptOrChangeAccount(u.id, 'approve')"
+                    title="Students activate their own account from this email - admins don't approve them"
+                    @click="resendVerification(u.id)"
                   >
-                    Approve
+                    Resend verification email
                   </button>
                   <button
                     v-else-if="u.accountStatus === 'SUSPENDED'"
                     class="inline-flex items-center justify-center rounded-control bg-success px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     :disabled="actingAccountId === u.id"
-                    @click="acceptOrChangeAccount(u.id, 'reactivate')"
+                    @click="reactivateAccount(u.id)"
                   >
                     Reactivate
                   </button>
@@ -1279,14 +1352,6 @@ onMounted(async () => {
                     @click="startSuspend(u.id)"
                   >
                     Suspend
-                  </button>
-                  <button
-                    v-if="u.accountStatus === 'ACTIVE' && u.role !== 'ADMIN'"
-                    class="inline-flex items-center justify-center rounded-control border border-academic-gold bg-white px-4 py-2 text-sm font-semibold text-uni-navy disabled:opacity-50"
-                    :disabled="actingAccountId === u.id"
-                    @click="promotingAccountId = u.id"
-                  >
-                    Promote to Admin
                   </button>
                 </div>
               </div>
@@ -1307,27 +1372,6 @@ onMounted(async () => {
                   >
                     Suspend account
                   </button>
-                </div>
-              </div>
-
-              <div v-if="promotingAccountId === u.id" class="fixed inset-0 z-20 flex items-center justify-center bg-charcoal/40 p-6" @click.self="promotingAccountId = null">
-                <div class="w-full max-w-sm rounded-modal border border-light-grey bg-white p-5 shadow-lg">
-                  <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-academic-gold/15 text-2xl">👑</div>
-                  <h2 class="mt-3 text-center font-display text-base font-bold text-uni-navy">Promote {{ u.firstName }} {{ u.lastName }} to Admin?</h2>
-                  <p class="mt-2 text-center text-sm text-charcoal">
-                    They will gain full access to the admin console - business verification, report review, account
-                    management and site announcements.
-                  </p>
-                  <div class="mt-4 flex gap-2">
-                    <button class="btn-secondary flex-1 text-sm" @click="promotingAccountId = null">Cancel</button>
-                    <button
-                      class="inline-flex flex-1 items-center justify-center rounded-control bg-academic-gold px-4 py-2 text-sm font-semibold text-uni-navy disabled:opacity-50"
-                      :disabled="actingAccountId === u.id"
-                      @click="confirmPromote(u.id)"
-                    >
-                      Promote to Admin
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -1387,6 +1431,17 @@ onMounted(async () => {
           </div>
         </template>
       </section>
+
+      <AdminListingsPanel
+        v-else-if="activeSection === 'listings'"
+        :business-id="listingsBusiness?.id"
+        :business-name="listingsBusiness?.name"
+        @clear-business="listingsBusiness = null"
+      />
+
+      <AdminPostsPanel v-else-if="activeSection === 'posts'" />
+
+      <AdminTeamPanel v-else-if="activeSection === 'team'" />
 
       <!-- Announcements section -->
       <section v-else-if="activeSection === 'announcements'" class="space-y-5">
@@ -1497,7 +1552,7 @@ onMounted(async () => {
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Total bookings</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ bookingStats.total }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ bookingStats.total }}</p>
               <p class="text-xs text-medium-grey">all time</p>
             </div>
             <div class="card">
@@ -1535,7 +1590,7 @@ onMounted(async () => {
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Platform average</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ reviewStats.platformAverage || "-" }} <span class="text-base text-academic-gold">★</span></p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ reviewStats.platformAverage || "-" }} <span class="text-base text-academic-gold">★</span></p>
               <p class="text-xs text-medium-grey">across {{ reviewStats.totalReviews }} reviews</p>
             </div>
             <div class="card">
@@ -1545,7 +1600,7 @@ onMounted(async () => {
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Reviewed businesses</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ reviewStats.reviewedBusinessCount }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ reviewStats.reviewedBusinessCount }}</p>
             </div>
           </div>
 
@@ -1606,11 +1661,11 @@ onMounted(async () => {
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Total orders</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ orderStats.totalOrders }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ orderStats.totalOrders }}</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Gross order value</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">R{{ orderStats.grossValue.toFixed(2) }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">R{{ orderStats.grossValue.toFixed(2) }}</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Placed / awaiting seller</p>
@@ -1671,15 +1726,15 @@ onMounted(async () => {
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Active promo codes</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ promoStats.activeCount }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ promoStats.activeCount }}</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Total redemptions</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ promoStats.totalRedemptions }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ promoStats.totalRedemptions }}</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Estimated discounts given</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">R{{ promoStats.totalDiscountGiven.toFixed(2) }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">R{{ promoStats.totalDiscountGiven.toFixed(2) }}</p>
             </div>
           </div>
 
@@ -1705,7 +1760,7 @@ onMounted(async () => {
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Total questions</p>
-              <p class="font-display text-2xl font-bold text-uni-navy">{{ questionStats.totalQuestions }}</p>
+              <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ questionStats.totalQuestions }}</p>
             </div>
             <div class="card">
               <p class="text-xs uppercase tracking-wide text-medium-grey">Answered</p>

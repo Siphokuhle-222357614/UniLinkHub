@@ -1,13 +1,12 @@
 package za.co.unilinkhub.user.application;
 
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import za.co.unilinkhub.common.exception.BadRequestException;
 import za.co.unilinkhub.common.exception.ConflictException;
 import za.co.unilinkhub.common.exception.ResourceNotFoundException;
+import za.co.unilinkhub.mail.AccountEmails;
 import za.co.unilinkhub.user.domain.User;
 import za.co.unilinkhub.user.repository.UserRepository;
 
@@ -17,28 +16,29 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RequestEmailChangeUseCase {
 
-    private static final Logger log = LoggerFactory.getLogger(RequestEmailChangeUseCase.class);
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final StudentEmailPolicy studentEmailPolicy;
+    private final AccountEmails accountEmails;
 
     public void execute(UUID userId, String newEmail, String currentPassword) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
+                .orElseThrow(() -> new ResourceNotFoundException("We couldn't find that account."));
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
-            throw new BadRequestException("Current password is incorrect");
+            throw new BadRequestException("Your current password isn't right. We ask for it to make sure it's really you - please check it and try again.");
         }
-        if (userRepository.existsByEmail(newEmail)) {
-            throw new ConflictException("An account already exists for this email address");
+        String normalized = StudentEmailPolicy.normalize(newEmail);
+        // Students must stay on their CPUT address; admin (staff) accounts aren't student accounts.
+        if (!user.isAdmin()) {
+            studentEmailPolicy.requireStudentEmail(normalized);
+        }
+        if (userRepository.existsByEmail(normalized)) {
+            throw new ConflictException("There's already an account with this email address. Try logging in, or reset your password if you've forgotten it.");
         }
 
         String token = UUID.randomUUID().toString();
-        user.requestEmailChange(newEmail, token);
+        user.requestEmailChange(normalized, token);
         userRepository.save(user);
-
-        // TODO: wire a real email/SMS provider - see RegisterUserUseCase for the same gap.
-        log.info("Email change confirmation for {} -> {}: /api/auth/confirm-email-change?token={}",
-                user.getEmail(), newEmail, token);
+        accountEmails.sendEmailChange(user, normalized, token);
     }
 }

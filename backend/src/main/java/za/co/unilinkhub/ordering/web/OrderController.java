@@ -22,6 +22,7 @@ import za.co.unilinkhub.ordering.application.OrderStatsDTO;
 import za.co.unilinkhub.ordering.application.SellerAnalyticsDTO;
 import za.co.unilinkhub.ordering.application.SellerAnalyticsService;
 import za.co.unilinkhub.security.CurrentUser;
+import za.co.unilinkhub.security.StudentOnly;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +44,10 @@ public class OrderController {
     public record CancelRequest(String reason) {
     }
 
+    public record CompleteRequest(String pickupCode) {
+    }
+
+    @StudentOnly("place orders")
     @PostMapping("/api/orders")
     @ResponseStatus(HttpStatus.CREATED)
     public List<OrderDTO> checkout(@CurrentUser UUID buyerId, @Valid @RequestBody CheckoutRequest request) {
@@ -78,8 +83,8 @@ public class OrderController {
     }
 
     @PostMapping("/api/orders/{id}/complete")
-    public OrderDTO complete(@CurrentUser UUID sellerId, @PathVariable UUID id) {
-        return orderService.complete(id, sellerId);
+    public OrderDTO complete(@CurrentUser UUID sellerId, @PathVariable UUID id, @RequestBody(required = false) CompleteRequest request) {
+        return orderService.complete(id, sellerId, request == null ? null : request.pickupCode());
     }
 
     @PostMapping("/api/orders/{id}/cancel")

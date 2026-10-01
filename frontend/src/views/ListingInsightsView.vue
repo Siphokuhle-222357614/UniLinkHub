@@ -76,19 +76,19 @@ onMounted(load);
 
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <div class="card text-center">
-        <p class="font-display text-2xl font-bold text-uni-navy">{{ listing.viewCount }}</p>
+        <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ listing.viewCount }}</p>
         <p class="text-xs text-medium-grey">Total views</p>
       </div>
       <div class="card text-center">
-        <p class="font-display text-2xl font-bold text-uni-navy">{{ listing.savedCount }}</p>
+        <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ listing.savedCount }}</p>
         <p class="text-xs text-medium-grey">Saves</p>
       </div>
       <div class="card text-center">
-        <p class="font-display text-2xl font-bold text-uni-navy">{{ formatPrice(listing.price) }}</p>
+        <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ formatPrice(listing.price) }}</p>
         <p class="text-xs text-medium-grey">Price</p>
       </div>
       <div class="card text-center">
-        <p class="font-display text-2xl font-bold text-uni-navy">{{ saveRate }}%</p>
+        <p class="font-display text-xl font-bold tabular-nums text-uni-navy xs:text-2xl">{{ saveRate }}%</p>
         <p class="text-xs text-medium-grey">Save rate</p>
       </div>
     </div>

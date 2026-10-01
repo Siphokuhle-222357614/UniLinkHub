@@ -27,19 +27,40 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+const TOAST_TITLES: Record<number, string> = {
+  400: "Please check that",
+  403: "That isn't allowed",
+  404: "We couldn't find that",
+  409: "That couldn't be done",
+  413: "That file is too big",
+};
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const method = (error.config?.method ?? "get").toLowerCase();
-    if (error.response?.status === 401) {
+    const url: string = error.config?.url ?? "";
+    const status: number | undefined = error.response?.status;
+
+    if (status === 401) {
+      const hadSession = !!error.config?.headers?.Authorization;
       setToken(null);
-    } else if (method !== "get") {
-      // Only mutating requests (POST/PATCH/PUT/DELETE) toast on failure - those are always a
-      // direct result of something the user just clicked. GET requests are excluded because many
-      // of them are silent background/nice-to-have fetches (polling, prefetching stats) that
-      // deliberately swallow errors elsewhere; toasting those would spam the user for failures
-      // they never asked about. A failed page-load GET already has its own inline error state.
-      useToastStore().error("Something went wrong", extractErrorMessage(error));
+      if (hadSession) {
+        // The server says why (session expired, account suspended...) - say it, then go to login.
+        const [{ useAuthStore }, { default: router }] = await Promise.all([import("@/stores/auth"), import("@/router")]);
+        useAuthStore().clearSession();
+        useToastStore().error("You've been logged out", extractErrorMessage(error));
+        const current = router.currentRoute.value;
+        if (current.meta.requiresAuth) {
+          router.push({ name: "login", query: { redirect: current.fullPath } });
+        }
+      }
+    } else if (method !== "get" && !url.startsWith("/auth/")) {
+      // Only mutating requests toast on failure - those are always a direct result of something
+      // the user just clicked. GETs are excluded because many are silent background fetches that
+      // deliberately swallow errors, and a failed page-load GET has its own inline error state.
+      // Auth pages (login, register...) show their errors inline instead.
+      useToastStore().error(TOAST_TITLES[status ?? 0] ?? "Something went wrong", extractErrorMessage(error));
     }
     return Promise.reject(error);
   },
@@ -51,13 +72,19 @@ export interface ApiError {
   error: string;
   message: string;
   path: string;
+  /** Machine-readable reason the UI can act on, e.g. EMAIL_NOT_VERIFIED, ADMIN_ACCOUNT, RESTRICTED_ITEM. */
+  code?: string;
 }
 
 export function extractErrorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as ApiError | undefined;
     if (data?.message) return data.message;
-    if (err.message) return err.message;
+    if (!err.response) return "We couldn't reach UniLinkHub. Check your internet connection and try again.";
   }
-  return "Something went wrong. Please try again.";
+  return "Something went wrong. Please try again in a moment.";
+}
+
+export function extractErrorCode(err: unknown): string | undefined {
+  return axios.isAxiosError(err) ? (err.response?.data as ApiError | undefined)?.code : undefined;
 }

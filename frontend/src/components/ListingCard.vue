@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { CalendarClock, Columns3, Eye, Heart, Package } from "@lucide/vue";
+import { CalendarClock, Columns3, Eye, Heart, MapPin, Package } from "@lucide/vue";
+import SellerTrustBadges from "@/components/SellerTrustBadges.vue";
 import type { ListingDTO } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth";
 import { useSavedListingsStore } from "@/stores/savedListings";
@@ -63,7 +64,7 @@ const lowStock = computed(() => {
       </div>
 
       <button
-        v-if="auth.isAuthenticated"
+        v-if="auth.isAuthenticated && !auth.isAdmin"
         class="absolute right-2 top-2 flex h-8 w-8 sm:right-3 sm:top-3 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white/90 shadow-xs backdrop-blur transition hover:scale-110 active:scale-95"
         :aria-label="isSaved ? 'Unsave listing' : 'Save listing'"
         :aria-pressed="isSaved"
@@ -91,6 +92,11 @@ const lowStock = computed(() => {
         {{ listing.name }}
       </h3>
       <div class="hidden sm:block"><p class="mt-1 line-clamp-2 text-sm leading-relaxed text-medium-grey">{{ listing.description }}</p></div>
+      <p v-if="listing.campusLabel" class="mt-2 flex min-w-0 items-center gap-1 truncate text-[11px] text-medium-grey">
+        <MapPin class="h-3 w-3 shrink-0 text-teal-600" />
+        <span class="truncate">{{ listing.campusLabel }}<template v-if="listing.pickupLocation"> · {{ listing.pickupLocation }}</template></span>
+      </p>
+      <SellerTrustBadges v-if="listing.seller" :trust="listing.seller" compact class="mt-1" />
 
       <div class="mt-auto flex items-end justify-between gap-2 pt-3 sm:pt-4">
         <div>

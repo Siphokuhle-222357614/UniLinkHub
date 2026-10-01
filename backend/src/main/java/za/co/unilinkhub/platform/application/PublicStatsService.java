@@ -22,7 +22,7 @@ public class PublicStatsService {
 
     public PublicStatsDTO compute() {
         return new PublicStatsDTO(
-                userRepository.findByAccountStatus(AccountStatus.ACTIVE).size(),
+                userRepository.findByAccountStatus(AccountStatus.ACTIVE).stream().filter(u -> !u.isAdmin()).count(),
                 businessRepository.findByVerificationStatus(VerificationStatus.VERIFIED).size(),
                 listingRepository.countByStatus(ListingStatus.ACTIVE),
                 orderRepository.countByStatus(OrderStatus.COMPLETED)

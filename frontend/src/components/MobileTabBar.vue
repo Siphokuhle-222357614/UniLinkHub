@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
-import { Compass, LayoutDashboard, LogIn, MessageCircle, Search, UserPlus, Users } from "@lucide/vue";
+import { Compass, LayoutDashboard, LogIn, MessageCircle, Scale, Search, ShieldCheck, UserPlus, Users } from "@lucide/vue";
 import { useAuthStore } from "@/stores/auth";
 import { useMessagesStore } from "@/stores/messages";
 import { useCommandPaletteStore } from "@/stores/commandPalette";
@@ -12,7 +12,15 @@ const palette = useCommandPaletteStore();
 const route = useRoute();
 
 const tabs = computed(() =>
-  auth.isAuthenticated
+  auth.isAdmin
+    ? [
+        { to: "/", label: "Explore", icon: Compass, exact: true },
+        { to: "/providers", label: "Providers", icon: Users },
+        { action: "search", label: "Search", icon: Search },
+        { to: "/admin", label: "Admin", icon: ShieldCheck },
+        { to: "/marketplace-rules", label: "Rules", icon: Scale },
+      ]
+    : auth.isAuthenticated
     ? [
         { to: "/", label: "Explore", icon: Compass, exact: true },
         { to: "/providers", label: "Providers", icon: Users },
