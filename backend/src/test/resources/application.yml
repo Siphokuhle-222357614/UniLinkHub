@@ -8,6 +8,10 @@ spring:
   # checked against MySQL by MigrationTest (runs in CI, or locally with MIGRATION_TEST_DB_URL set).
   flyway:
     enabled: false
+    # Same as production, for the tests that switch Flyway on.
+    baseline-on-migrate: true
+    baseline-version: 1
+    out-of-order: true
   jpa:
     hibernate:
       ddl-auto: create-drop

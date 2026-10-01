@@ -5,12 +5,14 @@ import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -53,5 +55,14 @@ class MigrationTest extends ApiTestSupport {
         mockMvc.perform(get("/api/listings/" + listingId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.campus").value("BELLVILLE"));
+
+        // order_items has a surrogate primary key Hibernate never mentions - checkout must still save its lines.
+        String buyer = student();
+        mockMvc.perform(post("/api/orders").header("Authorization", buyer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"listingId\":\"%s\",\"quantity\":2}],\"fulfilmentMethod\":\"PICKUP\"}".formatted(listingId)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(get("/api/orders/mine").header("Authorization", buyer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].items[0].quantity").value(2));
     }
 }

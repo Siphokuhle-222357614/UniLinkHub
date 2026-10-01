@@ -142,12 +142,17 @@ CREATE TABLE notifications (
     primary key (id)
 ) ENGINE = InnoDB;
 
+-- order_items is a JPA element collection, so Hibernate gives it no key of its own. Managed MySQL
+-- (Aiven, and others running with sql_require_primary_key=ON) refuses tables without a primary
+-- key, so it gets a surrogate one that Hibernate simply never mentions.
 CREATE TABLE order_items (
+    id bigint not null auto_increment,
     quantity integer not null,
     unit_price decimal(10,2) not null,
     listing_id binary(16) not null,
     order_id binary(16) not null,
-    listing_name varchar(150) not null
+    listing_name varchar(150) not null,
+    primary key (id)
 ) ENGINE = InnoDB;
 
 CREATE TABLE orders (

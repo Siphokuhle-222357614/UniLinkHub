@@ -25,7 +25,8 @@ jobs:
           --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-root"
           --health-interval=5s --health-timeout=5s --health-retries=20
     env:
-      MIGRATION_TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/unilinkhub_migration_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      # sql_require_primary_key matches managed MySQL (Aiven), which refuses tables without a primary key.
+      MIGRATION_TEST_DB_URL: jdbc:mysql://127.0.0.1:3306/unilinkhub_migration_test?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&sessionVariables=sql_require_primary_key=1
       MIGRATION_TEST_DB_USERNAME: root
       MIGRATION_TEST_DB_PASSWORD: ci-root
     defaults:

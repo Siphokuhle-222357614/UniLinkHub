@@ -322,15 +322,13 @@ link, which is fine for local development. To send real email, set:
 
 #### Upgrading a database created before migrations existed
 
-Databases made by the old `ddl-auto=update` setting are adopted automatically: Flyway marks them as
-already at V1 and applies everything after it. If yours is older than some entity changes, start
-the backend **once** with `JPA_DDL_AUTO=update` so Hibernate adds the missing columns, then start
-it normally. Admin accounts also need `student_number` to allow empty values on databases created
-before October 2026:
-
-```sql
-ALTER TABLE unilinkhub.users MODIFY student_number VARCHAR(32) NULL;
-```
+Databases made by the old `ddl-auto=update` setting upgrade themselves - just start the backend.
+Flyway marks them as already at V1, then `V1_1__AdoptPreFlywaySchema` compares them with
+`V1__baseline.sql` and creates missing tables, adds missing columns, updates changed column types
+(e.g. new enum values, `student_number` becoming optional for admins) and makes columns the app
+no longer uses optional. It never deletes tables, columns or data, and the log lists every change.
+If a migration ever fails half-way (MySQL can't undo table changes), the next start clears the
+failed record and runs it again (`FlywayConfig`).
 
 ### Discovery, trust and real-time (October 2026)
 
